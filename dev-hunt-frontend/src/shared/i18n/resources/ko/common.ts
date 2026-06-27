@@ -1,0 +1,15 @@
+export const common = {
+  brand: "DevHunt",
+  tagline: "개발 회사 채용 및 교육 관리 플랫폼입니다.",
+  description: "지원자 관리, 교육 과정, 프로젝트 과제 관리 기능이 추가될 예정입니다.",
+  loading: "처리 중...",
+  confirm: "확인",
+  cancel: "취소",
+  save: "저장",
+  delete: "삭제",
+  edit: "편집",
+  close: "닫기",
+  search: "검색",
+  language: "언어",
+  theme: "테마",
+};

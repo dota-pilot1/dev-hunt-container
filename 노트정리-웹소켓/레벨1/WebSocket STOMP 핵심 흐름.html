@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebSocket STOMP 핵심 흐름</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .flow {
+      white-space: pre;
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      padding: 18px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+    }
+
+    .mini strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--strong);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">핵심 구조</span>
+    <h1>WebSocket STOMP 핵심 흐름</h1>
+    <p class="lead">
+      이 문서는 WebSocket 연결, STOMP CONNECT, 연결 유지 중 publish/subscribe,
+      그리고 disconnect까지의 전체 흐름을 정리한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">전체 그림</h2>
+      <div class="flow">1. WebSocket 연결
+        │
+        ▼
+ws://localhost:4101/ws
+
+2. STOMP CONNECT
+        │
+        ▼
+연결 유지 (CONNECTED)
+
+        │
+        ├── subscribe("/topic/...")
+        ├── publish("/app/...")
+        ├── unsubscribe()
+        ├── publish("/app/...")
+        ├── publish("/app/...")
+        └── ...
+
+마지막
+        │
+        ▼
+disconnect()</div>
+      <div class="warn">
+        예시에서 포트는 현재 프로젝트 기준 <code>4101</code>이다.
+        일반 Spring Boot 기본 포트 <code>8080</code>을 쓰는 프로젝트라면 <code>ws://localhost:8080/ws</code>가 된다.
+      </div>
+    </section>
+
+    <h2>핵심 결론</h2>
+    <section class="card">
+      <p>
+        <code>/ws</code>는 WebSocket 연결을 여는 입구다.
+        연결이 열린 뒤 실제 채팅 기능은 STOMP 명령인
+        <code>CONNECT</code>, <code>SUBSCRIBE</code>, <code>SEND</code>, <code>UNSUBSCRIBE</code>,
+        <code>DISCONNECT</code>로 처리된다.
+      </p>
+      <p>
+        즉 연결 URL은 하나지만, 연결 안에서 여러 destination을 사용해 기능을 나눈다.
+      </p>
+      <pre><code>연결 URL
+  ws://localhost:4101/ws
+
+메시지 목적지
+  /app/chat.level1.ping
+  /topic/chat.level1.pong
+  /topic/chat.rooms.{roomId}
+  /user/queue/notifications</code></pre>
+    </section>
+
+    <h2>1. WebSocket 연결</h2>
+    <section class="card">
+      <p>
+        첫 단계는 브라우저와 서버 사이에 WebSocket 통신 통로를 여는 것이다.
+        이때 사용하는 주소가 <code>ws://localhost:4101/ws</code>다.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>코드</th>
+            <th>의미</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>백엔드</td>
+            <td><code>registry.addEndpoint("/ws")</code></td>
+            <td>WebSocket 접속 endpoint를 연다.</td>
+          </tr>
+          <tr>
+            <td>프론트</td>
+            <td><code>brokerURL: wsUrl</code></td>
+            <td><code>ws://localhost:4101/ws</code>로 접속한다.</td>
+          </tr>
+          <tr>
+            <td>실행</td>
+            <td><code>client.activate()</code></td>
+            <td>실제 연결을 시작한다.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        이 단계에서 연결되는 것은 아직 “채팅방 구독”이 아니다.
+        서버와 브라우저 사이에 실시간 통신이 가능한 통로를 여는 단계다.
+      </p>
+    </section>
+
+    <h2>2. STOMP CONNECT</h2>
+    <section class="card">
+      <p>
+        WebSocket 연결이 열리면 그 위에서 STOMP 프로토콜 연결을 시작한다.
+        <code>@stomp/stompjs</code>는 내부적으로 STOMP <code>CONNECT</code> 프레임을 보낸다.
+      </p>
+      <pre><code>CONNECT
+accept-version:1.2
+heart-beat:10000,10000</code></pre>
+      <p>
+        서버가 이를 받아들이면 <code>CONNECTED</code> 프레임을 응답하고,
+        프론트의 <code>onConnect</code> 콜백이 실행된다.
+      </p>
+      <pre><code>onConnect: () =&gt; {
+  setConnectionState("connected");
+  client.subscribe("/topic/chat.level1.pong", callback);
+}</code></pre>
+      <div class="note">
+        <code>onConnect</code>가 실행됐다는 것은 WebSocket 연결뿐 아니라 STOMP 세션까지 준비됐다는 뜻이다.
+      </div>
+    </section>
+
+    <h2>3. 연결 유지 상태</h2>
+    <section class="card">
+      <p>
+        <code>CONNECTED</code> 이후에는 같은 WebSocket 연결을 계속 유지하면서 여러 작업을 할 수 있다.
+      </p>
+      <div class="grid">
+        <div class="mini">
+          <strong>subscribe()</strong>
+          <p>서버가 보내는 특정 topic/queue 메시지를 받겠다고 등록한다.</p>
+        </div>
+        <div class="mini">
+          <strong>publish()</strong>
+          <p>서버로 메시지를 보낸다. STOMP 프레임 기준으로는 <code>SEND</code>다.</p>
+        </div>
+        <div class="mini">
+          <strong>unsubscribe()</strong>
+          <p>더 이상 특정 topic/queue 메시지를 받지 않겠다고 해제한다.</p>
+        </div>
+        <div class="mini">
+          <strong>disconnect()</strong>
+          <p>STOMP 연결과 WebSocket 연결을 정리한다.</p>
+        </div>
+      </div>
+    </section>
+
+    <h2>4. subscribe()</h2>
+    <section class="card">
+      <p>
+        <code>subscribe()</code>는 서버 Controller를 호출하는 코드가 아니다.
+        broker에게 “이 destination으로 오는 메시지를 나에게 보내줘”라고 등록하는 코드다.
+      </p>
+      <pre><code>client.subscribe("/topic/chat.level1.pong", (frame) =&gt; {
+  const body = JSON.parse(frame.body);
+  console.log(body);
+});</code></pre>
+      <p>내부적으로는 이런 STOMP 프레임을 보낸다.</p>
+      <pre><code>SUBSCRIBE
+destination:/topic/chat.level1.pong
+id:sub-0</code></pre>
+      <p>
+        서버의 simple broker는 현재 WebSocket 세션을
+        <code>/topic/chat.level1.pong</code> 구독자로 등록한다.
+      </p>
+    </section>
+
+    <h2>5. publish()</h2>
+    <section class="card">
+      <p>
+        <code>publish()</code>는 서버로 메시지를 보내는 코드다.
+        <code>@stomp/stompjs</code>의 API 이름은 <code>publish</code>지만,
+        STOMP 프레임 기준으로는 <code>SEND</code>다.
+      </p>
+      <pre><code>client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify({
+    sender: "tester",
+    message: "hello websocket stomp",
+  }),
+});</code></pre>
+      <p>내부적으로는 이런 STOMP 프레임을 보낸다.</p>
+      <pre><code>SEND
+destination:/app/chat.level1.ping
+content-type:application/json
+
+{"sender":"tester","message":"hello websocket stomp"}</code></pre>
+      <p>
+        백엔드에서는 <code>/app</code> prefix가 제거되고,
+        <code>@MessageMapping("/chat.level1.ping")</code> 메서드가 실행된다.
+      </p>
+    </section>
+
+    <h2>6. 서버 응답과 topic 전달</h2>
+    <section class="card">
+      <p>
+        서버는 <code>@MessageMapping</code>으로 메시지를 받은 뒤,
+        <code>@SendTo</code>에 지정된 topic으로 응답을 보낸다.
+      </p>
+      <pre><code>@MessageMapping("/chat.level1.ping")
+@SendTo("/topic/chat.level1.pong")
+public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+    return new ChatLevel1PongResponse(sender, "pong: " + message, Instant.now());
+}</code></pre>
+      <p>
+        그러면 simple broker가 <code>/topic/chat.level1.pong</code>을 구독 중인 모든 프론트 세션에 메시지를 전달한다.
+      </p>
+    </section>
+
+    <h2>7. unsubscribe()</h2>
+    <section class="card">
+      <p>
+        <code>unsubscribe()</code>는 특정 topic/queue 구독을 해제한다.
+        Level 1 코드에서는 아직 직접 쓰지 않지만, 방을 이동하거나 특정 채널 수신을 끊을 때 필요하다.
+      </p>
+      <pre><code>const subscription = client.subscribe("/topic/chat.level1.pong", callback);
+
+// 나중에 구독 해제
+subscription.unsubscribe();</code></pre>
+      <p>
+        채팅방 기능으로 확장하면 방을 나갈 때 해당 방 topic 구독을 해제하는 방식으로 사용한다.
+      </p>
+    </section>
+
+    <h2>8. disconnect()</h2>
+    <section class="card">
+      <p>
+        마지막 단계는 연결을 정리하는 것이다.
+        현재 코드에서는 <code>client.deactivate()</code>를 사용한다.
+      </p>
+      <pre><code>const disconnect = async () =&gt; {
+  const client = clientRef.current;
+  if (!client) return;
+
+  await client.deactivate();
+  clientRef.current = null;
+  setConnectionState("disconnected");
+};</code></pre>
+      <p>
+        <code>deactivate()</code>는 STOMP 연결을 종료하고 내부 WebSocket도 닫는다.
+      </p>
+    </section>
+
+    <h2>Level 1 코드와 매칭</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>흐름</th>
+          <th>프론트 코드</th>
+          <th>백엔드 코드</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>WebSocket 연결</td>
+          <td><code>brokerURL: wsUrl</code>, <code>client.activate()</code></td>
+          <td><code>registry.addEndpoint("/ws")</code></td>
+        </tr>
+        <tr>
+          <td>STOMP CONNECT 성공</td>
+          <td><code>onConnect</code></td>
+          <td><code>@EnableWebSocketMessageBroker</code> 기반 STOMP 처리</td>
+        </tr>
+        <tr>
+          <td>구독</td>
+          <td><code>client.subscribe("/topic/chat.level1.pong", callback)</code></td>
+          <td><code>enableSimpleBroker("/topic", "/queue")</code></td>
+        </tr>
+        <tr>
+          <td>발행</td>
+          <td><code>client.publish({ destination: "/app/chat.level1.ping" })</code></td>
+          <td><code>@MessageMapping("/chat.level1.ping")</code></td>
+        </tr>
+        <tr>
+          <td>응답</td>
+          <td>subscribe callback 실행</td>
+          <td><code>@SendTo("/topic/chat.level1.pong")</code></td>
+        </tr>
+        <tr>
+          <td>종료</td>
+          <td><code>client.deactivate()</code></td>
+          <td>WebSocket/STOMP 세션 종료</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>publish와 subscribe 순서</h2>
+    <section class="card">
+      <p>
+        보통은 먼저 <code>subscribe()</code>를 해두고, 그 다음 <code>publish()</code>를 한다.
+        그래야 서버가 응답을 topic으로 보냈을 때 프론트가 이미 받을 준비가 되어 있다.
+      </p>
+      <pre><code>onConnect: () =&gt; {
+  client.subscribe("/topic/chat.level1.pong", callback);
+};
+
+// 사용자가 버튼 클릭
+client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify(payload),
+});</code></pre>
+    </section>
+
+    <h2>정리</h2>
+    <section class="card">
+      <ul>
+        <li><code>ws://localhost:4101/ws</code>는 연결 입구다.</li>
+        <li><code>client.activate()</code>가 WebSocket 연결과 STOMP CONNECT를 시작한다.</li>
+        <li><code>onConnect</code> 이후부터 publish/subscribe를 안정적으로 사용할 수 있다.</li>
+        <li><code>subscribe()</code>는 메시지를 받겠다고 broker에 등록하는 작업이다.</li>
+        <li><code>publish()</code>는 서버로 메시지를 보내는 작업이다.</li>
+        <li><code>disconnect()</code> 또는 <code>deactivate()</code>는 연결을 정리하는 작업이다.</li>
+        <li>연결 URL은 하나이고, 실제 기능 구분은 STOMP destination으로 한다.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>구독 및 메시지 응답 기본 프로세스</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .flow {
+      white-space: pre;
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      padding: 18px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .file {
+      color: var(--blue);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Message Flow</span>
+    <h1>구독 및 메시지 응답 기본 프로세스</h1>
+    <p class="lead">
+      이 문서는 Level 1의 가장 중요한 메시지 흐름을 정리한다.
+      프론트가 <code>publish</code>로 메시지를 보내고, 백엔드가 <code>@MessageMapping</code>으로 받은 뒤,
+      <code>@SendTo</code>로 topic에 응답하고, 프론트 구독자가 받는 흐름이다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">전체 흐름</h2>
+      <div class="flow">1. 프론트가 메시지 보냄
+
+client.publish({
+  destination: "/app/chat.level1.ping"
+})
+
+        │
+        ▼
+
+2. 백엔드가 받음
+
+@MessageMapping("/chat.level1.ping")
+
+        │
+        ▼
+
+3. 백엔드 메서드 실행
+
+public ChatLevel1PongResponse ping(...)
+
+        │
+        ▼
+
+4. 반환값 생성
+
+return new ChatLevel1PongResponse(...)
+
+        │
+        ▼
+
+5. 반환값을 topic으로 전송
+
+@SendTo("/topic/chat.level1.pong")
+
+        │
+        ▼
+
+6. 프론트 구독자가 받음
+
+client.subscribe("/topic/chat.level1.pong", callback)</div>
+    </section>
+
+    <h2>이 프로세스의 이름</h2>
+    <section class="card">
+      <p>
+        이 흐름은 <strong>STOMP 기반 메시지 요청-응답 프로세스</strong>라고 보면 된다.
+      </p>
+      <p>
+        HTTP REST처럼 요청하면 같은 HTTP 응답으로 바로 받는 구조가 아니다.
+        프론트는 <code>/app/...</code>으로 메시지를 보내고,
+        서버는 <code>/topic/...</code>으로 메시지를 다시 발행한다.
+        프론트는 미리 구독해둔 callback으로 그 응답을 받는다.
+      </p>
+      <div class="note">
+        핵심은 “보내는 주소”와 “받는 주소”가 다르다는 것이다.
+        보내기는 <code>/app/chat.level1.ping</code>, 받기는 <code>/topic/chat.level1.pong</code>이다.
+      </div>
+    </section>
+
+    <h2>관련 파일</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>파일</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>프론트</td>
+          <td><span class="file">dev-hunt-frontend/src/features/chat-study-level1/ChatStudyLevel1Page.tsx</span></td>
+          <td><code>client.subscribe</code>, <code>client.publish</code>, 응답 로그 처리</td>
+        </tr>
+        <tr>
+          <td>백엔드 Controller</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/ChatStudyMessageController.java</span></td>
+          <td><code>@MessageMapping</code>으로 메시지를 받고 <code>@SendTo</code>로 응답</td>
+        </tr>
+        <tr>
+          <td>백엔드 설정</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/config/WebSocketConfig.java</span></td>
+          <td><code>/app</code>, <code>/topic</code>, <code>/queue</code> prefix 설정</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>1. 프론트가 구독을 먼저 등록</h2>
+    <section class="card">
+      <p>
+        메시지 응답을 받으려면 프론트가 먼저 응답 topic을 구독해야 한다.
+        이 코드는 연결 성공 후 <code>onConnect</code> 안에서 실행된다.
+      </p>
+      <pre><code>client.subscribe("/topic/chat.level1.pong", (frame: IMessage) =&gt; {
+  const body = JSON.parse(frame.body) as PongMessage;
+  appendLog(
+    "received",
+    `${body.sender}: ${body.message} (${new Date(body.serverTime).toLocaleTimeString("ko-KR")})`
+  );
+});</code></pre>
+      <p>
+        이 코드는 “<code>/topic/chat.level1.pong</code>으로 오는 메시지를 받겠다”는 등록이다.
+        서버 Controller를 직접 호출하지 않는다.
+      </p>
+    </section>
+
+    <h2>2. 프론트가 메시지를 보냄</h2>
+    <section class="card">
+      <p>
+        사용자가 Ping 버튼을 누르면 프론트가 서버로 메시지를 보낸다.
+      </p>
+      <pre><code>client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify({
+    sender,
+    message,
+  }),
+});</code></pre>
+      <p>
+        여기서 <code>destination</code>은 <code>/app/chat.level1.ping</code>이다.
+        <code>/app</code>은 백엔드 설정에서 서버 애플리케이션 메서드로 라우팅하라고 정한 prefix다.
+      </p>
+      <pre><code>registry.setApplicationDestinationPrefixes("/app");</code></pre>
+    </section>
+
+    <h2>3. 백엔드가 메시지를 받음</h2>
+    <section class="card">
+      <p>
+        프론트가 <code>/app/chat.level1.ping</code>으로 보낸 메시지는 백엔드에서
+        <code>@MessageMapping("/chat.level1.ping")</code>과 매칭된다.
+      </p>
+      <pre><code>@MessageMapping("/chat.level1.ping")
+public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+    ...
+}</code></pre>
+      <p>
+        왜 프론트는 <code>/app/chat.level1.ping</code>인데 백엔드는
+        <code>/chat.level1.ping</code>이냐면, Spring이 <code>/app</code> prefix를 제거한 뒤
+        <code>@MessageMapping</code>을 찾기 때문이다.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>프론트 publish destination</th>
+            <th>Spring 처리</th>
+            <th>백엔드 매핑</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/app/chat.level1.ping</code></td>
+            <td><code>/app</code> 제거</td>
+            <td><code>@MessageMapping("/chat.level1.ping")</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>4. 백엔드 메서드가 실행됨</h2>
+    <section class="card">
+      <p>
+        메시지 body는 <code>ChatLevel1PingRequest</code>로 변환되어 메서드 파라미터로 들어온다.
+      </p>
+      <pre><code>public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+    String sender = request.sender() == null || request.sender().isBlank()
+            ? "anonymous"
+            : request.sender().trim();
+    String message = request.message() == null || request.message().isBlank()
+            ? "ping"
+            : request.message().trim();
+
+    return new ChatLevel1PongResponse(sender, "pong: " + message, Instant.now());
+}</code></pre>
+      <p>
+        이 메서드는 받은 sender/message를 정리한 뒤 <code>ChatLevel1PongResponse</code>를 반환한다.
+      </p>
+    </section>
+
+    <h2>5. 반환값을 topic으로 전송</h2>
+    <section class="card">
+      <p>
+        메서드 위에 붙은 <code>@SendTo</code>가 반환값을 어디로 보낼지 정한다.
+      </p>
+      <pre><code>@SendTo("/topic/chat.level1.pong")</code></pre>
+      <p>
+        이 뜻은 “메서드 반환값을 <code>/topic/chat.level1.pong</code>으로 보내라”이다.
+      </p>
+      <p>
+        이 topic은 백엔드 설정에서 simple broker가 관리하도록 등록되어 있다.
+      </p>
+      <pre><code>registry.enableSimpleBroker("/topic", "/queue");</code></pre>
+      <p>
+        그래서 Spring simple broker가 <code>/topic/chat.level1.pong</code> 구독자들에게 메시지를 전달할 수 있다.
+      </p>
+    </section>
+
+    <h2>6. 프론트 구독자가 응답을 받음</h2>
+    <section class="card">
+      <p>
+        프론트는 이미 <code>/topic/chat.level1.pong</code>을 구독하고 있으므로,
+        서버가 이 topic으로 메시지를 보내면 subscribe callback이 실행된다.
+      </p>
+      <pre><code>client.subscribe("/topic/chat.level1.pong", (frame: IMessage) =&gt; {
+  const body = JSON.parse(frame.body) as PongMessage;
+  appendLog("received", `${body.sender}: ${body.message}`);
+});</code></pre>
+      <p>
+        <code>frame.body</code>에는 백엔드의 <code>ChatLevel1PongResponse</code>가 JSON 문자열로 들어 있다.
+        그래서 <code>JSON.parse</code>로 객체로 바꿔 사용한다.
+      </p>
+    </section>
+
+    <h2>주소 매칭 정리</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>단계</th>
+          <th>주소</th>
+          <th>관련 코드</th>
+          <th>의미</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>프론트 발행</td>
+          <td><code>/app/chat.level1.ping</code></td>
+          <td><code>client.publish(...)</code></td>
+          <td>서버 로직을 호출하기 위해 메시지를 보냄</td>
+        </tr>
+        <tr>
+          <td>백엔드 수신</td>
+          <td><code>/chat.level1.ping</code></td>
+          <td><code>@MessageMapping</code></td>
+          <td><code>/app</code> prefix 제거 후 메서드 매칭</td>
+        </tr>
+        <tr>
+          <td>백엔드 응답</td>
+          <td><code>/topic/chat.level1.pong</code></td>
+          <td><code>@SendTo</code></td>
+          <td>반환값을 topic으로 전송</td>
+        </tr>
+        <tr>
+          <td>프론트 구독</td>
+          <td><code>/topic/chat.level1.pong</code></td>
+          <td><code>client.subscribe(...)</code></td>
+          <td>topic 메시지를 받는 callback 등록</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>REST 요청-응답과 다른 점</h2>
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>REST</th>
+            <th>STOMP WebSocket</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>요청</td>
+            <td><code>POST /api/...</code></td>
+            <td><code>publish("/app/...")</code></td>
+          </tr>
+          <tr>
+            <td>서버 처리</td>
+            <td><code>@PostMapping</code></td>
+            <td><code>@MessageMapping</code></td>
+          </tr>
+          <tr>
+            <td>응답</td>
+            <td>HTTP response body</td>
+            <td><code>@SendTo("/topic/...")</code>로 broker에 발행</td>
+          </tr>
+          <tr>
+            <td>클라이언트 수신</td>
+            <td><code>await api.post(...)</code> 결과</td>
+            <td><code>subscribe(..., callback)</code> 실행</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        STOMP에서는 보낸 함수가 직접 반환값을 받는 느낌이 아니라,
+        미리 구독해 둔 topic으로 서버 응답이 흘러오고 callback이 실행되는 구조다.
+      </div>
+    </section>
+
+    <h2>실제 Level 1에서 확인할 것</h2>
+    <section class="card">
+      <ol>
+        <li>프론트가 <code>/topic/chat.level1.pong</code>을 구독한다.</li>
+        <li>프론트가 <code>/app/chat.level1.ping</code>으로 메시지를 보낸다.</li>
+        <li>백엔드 <code>@MessageMapping</code> 메서드가 실행된다.</li>
+        <li>백엔드가 <code>ChatLevel1PongResponse</code>를 반환한다.</li>
+        <li><code>@SendTo</code>가 반환값을 <code>/topic/chat.level1.pong</code>으로 보낸다.</li>
+        <li>프론트 subscribe callback이 실행된다.</li>
+        <li>이벤트 로그에 <code>received</code> 메시지가 찍힌다.</li>
+      </ol>
+    </section>
+
+    <h2>정리</h2>
+    <section class="card">
+      <ul>
+        <li>이 흐름은 구독 및 메시지 응답의 기본 프로세스다.</li>
+        <li><code>publish("/app/...")</code>는 서버 로직을 호출한다.</li>
+        <li><code>@MessageMapping</code>은 프론트가 보낸 메시지를 받는다.</li>
+        <li><code>@SendTo("/topic/...")</code>는 메서드 반환값을 topic으로 보낸다.</li>
+        <li><code>subscribe("/topic/...")</code>는 topic 메시지를 받을 callback을 등록한다.</li>
+        <li>받는 주소와 보내는 주소가 다르다는 점이 핵심이다.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

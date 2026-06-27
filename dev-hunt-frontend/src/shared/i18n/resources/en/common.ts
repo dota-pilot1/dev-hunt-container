@@ -1,0 +1,15 @@
+export const common = {
+  brand: "DevHunt",
+  tagline: "Recruiting and training platform for a development company.",
+  description: "Candidate management, training courses, and project assignment features are coming soon.",
+  loading: "Loading...",
+  confirm: "Confirm",
+  cancel: "Cancel",
+  save: "Save",
+  delete: "Delete",
+  edit: "Edit",
+  close: "Close",
+  search: "Search",
+  language: "Language",
+  theme: "Theme",
+};

@@ -1,0 +1,56 @@
+server:
+  port: 4101
+
+spring:
+  application:
+    name: dev-hunt-server
+
+  config:
+    import: optional:classpath:application-local.yaml
+
+  datasource:
+    url: jdbc:postgresql://localhost:5435/dev_hunt
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    show-sql: true
+
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:true}
+
+app:
+  front-url: ${APP_FRONT_URL:http://localhost:4500}
+  mail:
+    from: ${MAIL_FROM:no-reply@devhunt.local}
+
+jwt:
+  secret: ${JWT_SECRET:dev-hunt-dev-secret-key-must-be-at-least-32-bytes-long}
+  access-token-expiration-ms: 1800000
+  refresh-token-expiration-ms: 604800000
+  issuer: dev-hunt
+
+aws:
+  s3:
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    bucket: ${AWS_S3_BUCKET_NAME:}
+    region: ${AWS_S3_REGION:ap-northeast-2}
+    prefix: ${AWS_S3_PREFIX:dev-hunt}
+    presign-expires-seconds: 300

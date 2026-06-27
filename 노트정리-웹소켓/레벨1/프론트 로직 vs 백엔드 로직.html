@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level 1 프론트 로직 vs 백엔드 로직</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .front {
+      border-top: 4px solid var(--blue);
+    }
+
+    .back {
+      border-top: 4px solid var(--green);
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .file {
+      color: var(--blue);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Level 1</span>
+    <h1>프론트 로직 vs 백엔드 로직</h1>
+    <p class="lead">
+      Level 1의 목표는 프론트가 STOMP로 서버에 연결하고, 서버가 받은 ping 메시지를 pong 메시지로 다시 내려주는 것이다.
+      프론트 핵심은 <code>connect()</code>이고, 백엔드 핵심은 <code>WebSocketConfig</code>와
+      <code>ChatStudyMessageController</code>다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">한 줄 요약</h2>
+      <p>
+        프론트는 <strong>연결하고, 구독하고, 메시지를 보낸다.</strong>
+        백엔드는 <strong>연결 endpoint를 열고, 메시지 라우팅 규칙을 만들고, 들어온 메시지를 응답 topic으로 보낸다.</strong>
+      </p>
+    </section>
+
+    <h2>관련 파일</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>파일</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>프론트</td>
+          <td><span class="file">dev-hunt-frontend/src/features/chat-study-level1/ChatStudyLevel1Page.tsx</span></td>
+          <td>STOMP client 생성, WebSocket 연결, topic 구독, ping 발행, 로그 출력</td>
+        </tr>
+        <tr>
+          <td>프론트 라우팅</td>
+          <td><span class="file">dev-hunt-frontend/src/app/chat-study/[level]/page.tsx</span></td>
+          <td><code>/chat-study/level-1</code> 접근 시 실제 Level 1 테스트 화면 렌더링</td>
+        </tr>
+        <tr>
+          <td>백엔드 설정</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/config/WebSocketConfig.java</span></td>
+          <td>WebSocket endpoint와 STOMP broker prefix 설정</td>
+        </tr>
+        <tr>
+          <td>백엔드 메시지 처리</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/ChatStudyMessageController.java</span></td>
+          <td>프론트가 보낸 ping 메시지를 받고 pong 응답을 topic으로 전송</td>
+        </tr>
+        <tr>
+          <td>백엔드 DTO</td>
+          <td>
+            <span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/dto/ChatLevel1PingRequest.java</span><br />
+            <span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/dto/ChatLevel1PongResponse.java</span>
+          </td>
+          <td>프론트 요청 JSON과 서버 응답 JSON의 모양 정의</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>프론트와 백엔드 역할 비교</h2>
+    <div class="columns">
+      <section class="card front">
+        <h3>프론트 핵심 역할</h3>
+        <ul>
+          <li><code>@stomp/stompjs</code>의 <code>Client</code> 생성</li>
+          <li><code>ws://localhost:4101/ws</code>로 연결 시작</li>
+          <li>연결 성공 후 <code>/topic/chat.level1.pong</code> 구독</li>
+          <li>Ping 버튼 클릭 시 <code>/app/chat.level1.ping</code>으로 메시지 발행</li>
+          <li>받은 pong 메시지를 화면 로그에 출력</li>
+        </ul>
+      </section>
+
+      <section class="card back">
+        <h3>백엔드 핵심 역할</h3>
+        <ul>
+          <li><code>/ws</code> WebSocket endpoint 오픈</li>
+          <li><code>/app</code>으로 들어오는 메시지를 Controller로 라우팅</li>
+          <li><code>/topic</code> 구독자에게 메시지를 브로드캐스트</li>
+          <li><code>@MessageMapping</code>으로 ping 메시지 처리</li>
+          <li><code>@SendTo</code>로 pong 메시지 전송</li>
+        </ul>
+      </section>
+    </div>
+
+    <h2>프론트 핵심 코드</h2>
+    <section class="card front">
+      <h3>connect 함수</h3>
+      <pre><code>const connect = () =&gt; {
+  if (clientRef.current?.active) return;
+
+  setConnectionState("connecting");
+
+  const client = new Client({
+    brokerURL: wsUrl,
+    reconnectDelay: 0,
+    debug: (line) =&gt; {
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[stomp]", line);
+      }
+    },
+    onConnect: () =&gt; {
+      setConnectionState("connected");
+      appendLog("system", "STOMP 연결 완료");
+      client.subscribe("/topic/chat.level1.pong", (frame: IMessage) =&gt; {
+        const body = JSON.parse(frame.body) as PongMessage;
+        appendLog(
+          "received",
+          `${body.sender}: ${body.message} (${new Date(body.serverTime).toLocaleTimeString("ko-KR")})`
+        );
+      });
+    },
+    onDisconnect: () =&gt; {
+      setConnectionState("disconnected");
+      appendLog("system", "STOMP 연결 해제");
+    },
+    onStompError: (frame) =&gt; {
+      setConnectionState("error");
+      appendLog("error", frame.headers.message ?? "STOMP 프로토콜 에러");
+    },
+    onWebSocketError: () =&gt; {
+      setConnectionState("error");
+      appendLog("error", "WebSocket 연결 에러");
+    },
+    onWebSocketClose: () =&gt; {
+      if (connectionState !== "idle") {
+        setConnectionState("disconnected");
+      }
+    },
+  });
+
+  clientRef.current = client;
+  client.activate();
+};</code></pre>
+      <p>이 함수가 하는 일을 순서대로 보면 다음과 같다.</p>
+      <ol>
+        <li><code>clientRef.current?.active</code>로 중복 연결을 막는다.</li>
+        <li>화면 상태를 <code>connecting</code>으로 바꾼다.</li>
+        <li><code>new Client(...)</code>로 STOMP client 객체를 만든다.</li>
+        <li><code>onConnect</code> 안에서 연결 성공 후 topic을 구독한다.</li>
+        <li><code>clientRef.current = client</code>로 연결 객체를 저장한다.</li>
+        <li><code>client.activate()</code>로 실제 연결을 시작한다.</li>
+      </ol>
+    </section>
+
+    <section class="card front">
+      <h3>프론트의 publish 코드</h3>
+      <pre><code>client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify({
+    sender,
+    message,
+  }),
+});</code></pre>
+      <p>
+        이 코드는 서버의 <code>@MessageMapping("/chat.level1.ping")</code>으로 메시지를 보낸다.
+        프론트에서는 <code>/app</code> prefix를 붙이고, 백엔드 Controller에서는 prefix를 뺀 주소로 매핑한다.
+      </p>
+    </section>
+
+    <h2>백엔드 핵심 코드</h2>
+    <section class="card back">
+      <h3>WebSocketConfig</h3>
+      <pre><code>@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.setApplicationDestinationPrefixes("/app");
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setUserDestinationPrefix("/user");
+    }
+}</code></pre>
+      <p>이 설정의 의미는 다음과 같다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>설정</th>
+            <th>의미</th>
+            <th>프론트와 매칭</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>addEndpoint("/ws")</code></td>
+            <td>WebSocket 접속 endpoint를 연다.</td>
+            <td><code>brokerURL: "ws://localhost:4101/ws"</code></td>
+          </tr>
+          <tr>
+            <td><code>setApplicationDestinationPrefixes("/app")</code></td>
+            <td>클라이언트가 서버 Controller로 메시지를 보낼 때 쓰는 prefix다.</td>
+            <td><code>destination: "/app/chat.level1.ping"</code></td>
+          </tr>
+          <tr>
+            <td><code>enableSimpleBroker("/topic", "/queue")</code></td>
+            <td>서버가 구독자에게 메시지를 뿌릴 수 있는 broker prefix다.</td>
+            <td><code>subscribe("/topic/chat.level1.pong")</code></td>
+          </tr>
+          <tr>
+            <td><code>setUserDestinationPrefix("/user")</code></td>
+            <td>나중에 사용자별 1:1 메시지로 확장할 때 쓰는 prefix다.</td>
+            <td>Level 1에서는 아직 사용하지 않음</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card back">
+      <h3>ChatStudyMessageController</h3>
+      <pre><code>@Controller
+public class ChatStudyMessageController {
+
+    @MessageMapping("/chat.level1.ping")
+    @SendTo("/topic/chat.level1.pong")
+    public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+        String sender = request.sender() == null || request.sender().isBlank()
+                ? "anonymous"
+                : request.sender().trim();
+        String message = request.message() == null || request.message().isBlank()
+                ? "ping"
+                : request.message().trim();
+
+        return new ChatLevel1PongResponse(sender, "pong: " + message, Instant.now());
+    }
+}</code></pre>
+      <p>이 컨트롤러가 하는 일을 순서대로 보면 다음과 같다.</p>
+      <ol>
+        <li>프론트가 <code>/app/chat.level1.ping</code>으로 메시지를 보낸다.</li>
+        <li><code>/app</code> prefix는 Spring 메시지 broker 설정에서 제거된다.</li>
+        <li>남은 <code>/chat.level1.ping</code>이 <code>@MessageMapping</code>과 매칭된다.</li>
+        <li>JSON body가 <code>ChatLevel1PingRequest</code>로 변환된다.</li>
+        <li>서버가 <code>ChatLevel1PongResponse</code>를 만든다.</li>
+        <li><code>@SendTo</code>에 의해 <code>/topic/chat.level1.pong</code> 구독자에게 응답이 전송된다.</li>
+      </ol>
+    </section>
+
+    <h2>주소 매칭표</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>목적</th>
+          <th>프론트</th>
+          <th>백엔드</th>
+          <th>설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>WebSocket 연결</td>
+          <td><code>ws://localhost:4101/ws</code></td>
+          <td><code>addEndpoint("/ws")</code></td>
+          <td>처음 연결하는 endpoint</td>
+        </tr>
+        <tr>
+          <td>서버로 메시지 보내기</td>
+          <td><code>/app/chat.level1.ping</code></td>
+          <td><code>@MessageMapping("/chat.level1.ping")</code></td>
+          <td><code>/app</code>은 서버 Controller로 보내는 prefix</td>
+        </tr>
+        <tr>
+          <td>서버 응답 받기</td>
+          <td><code>subscribe("/topic/chat.level1.pong")</code></td>
+          <td><code>@SendTo("/topic/chat.level1.pong")</code></td>
+          <td>서버가 topic 구독자에게 응답 브로드캐스트</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>구독 요청 처리 집중 설명</h2>
+    <section class="card">
+      <h3>구독 요청은 어디서 보내나?</h3>
+      <p>
+        구독 요청은 프론트의 <code>onConnect</code> 안에서 보낸다.
+        연결이 성공한 뒤 아래 코드가 실행되면 STOMP client는 서버로 <code>SUBSCRIBE</code> 프레임을 보낸다.
+      </p>
+      <pre><code>onConnect: () =&gt; {
+  setConnectionState("connected");
+  appendLog("system", "STOMP 연결 완료");
+
+  client.subscribe("/topic/chat.level1.pong", (frame: IMessage) =&gt; {
+    const body = JSON.parse(frame.body) as PongMessage;
+    appendLog(
+      "received",
+      `${body.sender}: ${body.message} (${new Date(body.serverTime).toLocaleTimeString("ko-KR")})`
+    );
+  });
+}</code></pre>
+      <p>
+        여기서 핵심은 <code>client.subscribe("/topic/chat.level1.pong", callback)</code>이다.
+        이 코드는 “나는 앞으로 <code>/topic/chat.level1.pong</code>으로 오는 메시지를 받겠다”라고 서버에 등록하는 요청이다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>구독 요청을 백엔드 Controller가 받는가?</h3>
+      <p>
+        아니다. 이 부분이 헷갈리기 쉽다.
+        <strong>구독 요청은 <code>@MessageMapping</code> 컨트롤러가 직접 받는 것이 아니다.</strong>
+      </p>
+      <p>
+        프론트가 <code>/topic/chat.level1.pong</code>을 구독하면,
+        Spring의 STOMP 메시지 브로커가 해당 WebSocket 세션을 topic 구독자로 등록한다.
+        현재 프로젝트에서는 이 설정이 아래 코드다.
+      </p>
+      <pre><code>registry.enableSimpleBroker("/topic", "/queue");</code></pre>
+      <p>
+        즉 <code>/topic</code>으로 시작하는 주소는 서버 Controller 메서드로 들어가는 요청이 아니라,
+        Spring simple broker가 관리하는 구독 목적지다.
+      </p>
+      <div class="note">
+        <code>@MessageMapping</code>은 클라이언트가 <code>/app/...</code>으로 메시지를 보낼 때 실행된다.
+        <code>/topic/...</code> 구독 등록은 simple broker가 처리한다.
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>구독 요청의 실제 의미</h3>
+      <p>프론트 코드:</p>
+      <pre><code>client.subscribe("/topic/chat.level1.pong", callback)</code></pre>
+      <p>이 코드는 내부적으로 이런 의미를 가진 STOMP 프레임을 서버로 보낸다.</p>
+      <pre><code>SUBSCRIBE
+destination:/topic/chat.level1.pong
+id:sub-0</code></pre>
+      <p>
+        서버는 이 프레임을 받고 현재 WebSocket 세션을
+        <code>/topic/chat.level1.pong</code> 목적지의 구독자 목록에 등록한다.
+      </p>
+      <p>
+        이후 서버가 같은 destination으로 메시지를 보내면,
+        simple broker는 그 topic을 구독 중인 모든 WebSocket 세션에게 메시지를 전달한다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>그럼 서버는 언제 구독자에게 메시지를 보내나?</h3>
+      <p>
+        사용자가 Ping 버튼을 누르면 프론트가 서버 Controller로 메시지를 보낸다.
+      </p>
+      <pre><code>client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify({
+    sender,
+    message,
+  }),
+});</code></pre>
+      <p>
+        이 메시지는 <code>/app</code> prefix 때문에 백엔드의 <code>@MessageMapping</code>으로 라우팅된다.
+      </p>
+      <pre><code>@MessageMapping("/chat.level1.ping")
+@SendTo("/topic/chat.level1.pong")
+public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+    return new ChatLevel1PongResponse(sender, "pong: " + message, Instant.now());
+}</code></pre>
+      <p>
+        여기서 <code>@SendTo("/topic/chat.level1.pong")</code>이 중요하다.
+        이 메서드의 반환값은 <code>/topic/chat.level1.pong</code>으로 전송된다.
+      </p>
+      <p>
+        그리고 이 topic은 프론트가 이미 구독해 둔 주소다.
+        그래서 프론트의 subscribe callback이 실행된다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>구독 처리 흐름을 순서로 보면</h3>
+      <ol>
+        <li>프론트가 <code>client.activate()</code>로 STOMP 연결을 시작한다.</li>
+        <li>연결 성공 후 <code>onConnect</code>가 실행된다.</li>
+        <li>프론트가 <code>client.subscribe("/topic/chat.level1.pong", callback)</code>을 실행한다.</li>
+        <li>브라우저가 서버로 STOMP <code>SUBSCRIBE</code> 프레임을 보낸다.</li>
+        <li>Spring simple broker가 현재 WebSocket 세션을 <code>/topic/chat.level1.pong</code> 구독자로 등록한다.</li>
+        <li>이 시점에는 아직 Controller 메서드는 실행되지 않는다.</li>
+        <li>사용자가 Ping 버튼을 누르면 프론트가 <code>/app/chat.level1.ping</code>으로 메시지를 보낸다.</li>
+        <li>그제서야 <code>@MessageMapping("/chat.level1.ping")</code> 메서드가 실행된다.</li>
+        <li>메서드 반환값이 <code>@SendTo("/topic/chat.level1.pong")</code>으로 전송된다.</li>
+        <li>simple broker가 이 topic을 구독 중인 프론트 세션에 메시지를 전달한다.</li>
+        <li>프론트의 subscribe callback이 실행된다.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h3>구독과 메시지 발행의 차이</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>프론트 코드</th>
+            <th>서버 처리 주체</th>
+            <th>Controller 실행 여부</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>구독</td>
+            <td><code>client.subscribe("/topic/chat.level1.pong", callback)</code></td>
+            <td>Spring simple broker</td>
+            <td>실행 안 됨</td>
+          </tr>
+          <tr>
+            <td>발행</td>
+            <td><code>client.publish({ destination: "/app/chat.level1.ping" })</code></td>
+            <td><code>@MessageMapping</code> Controller</td>
+            <td>실행됨</td>
+          </tr>
+          <tr>
+            <td>응답 전송</td>
+            <td>프론트가 직접 하지 않음</td>
+            <td><code>@SendTo</code> + simple broker</td>
+            <td>Controller 반환 후 broker가 전달</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h3>구독 요청을 이해할 때 가장 중요한 문장</h3>
+      <p>
+        <strong>
+          <code>subscribe("/topic/...")</code>는 서버 Controller를 호출하는 코드가 아니라,
+          서버 broker에게 “이 topic의 메시지를 나한테 보내줘”라고 등록하는 코드다.
+        </strong>
+      </p>
+      <p>
+        실제 서버 로직 호출은 <code>publish("/app/...")</code>가 한다.
+        그리고 Controller가 <code>@SendTo("/topic/...")</code>으로 응답하면,
+        그때 broker가 구독자들에게 메시지를 뿌린다.
+      </p>
+    </section>
+
+    <h2>실제 메시지 이동 과정</h2>
+    <section class="card">
+      <ol>
+        <li>프론트가 <code>client.activate()</code>로 <code>/ws</code>에 연결한다.</li>
+        <li>연결 성공 시 프론트 <code>onConnect</code>가 실행된다.</li>
+        <li>프론트가 <code>/topic/chat.level1.pong</code>을 구독한다.</li>
+        <li>사용자가 Ping 버튼을 누른다.</li>
+        <li>프론트가 <code>/app/chat.level1.ping</code>으로 JSON 메시지를 보낸다.</li>
+        <li>백엔드가 <code>@MessageMapping("/chat.level1.ping")</code>에서 메시지를 받는다.</li>
+        <li>백엔드가 <code>ChatLevel1PongResponse</code>를 반환한다.</li>
+        <li>Spring이 반환값을 <code>/topic/chat.level1.pong</code>으로 전송한다.</li>
+        <li>프론트의 <code>subscribe</code> callback이 실행된다.</li>
+        <li>프론트가 받은 메시지를 로그에 출력한다.</li>
+      </ol>
+    </section>
+
+    <h2>DTO 매칭</h2>
+    <div class="columns">
+      <section class="card front">
+        <h3>프론트에서 보내는 payload</h3>
+        <pre><code>{
+  "sender": "tester",
+  "message": "hello websocket stomp"
+}</code></pre>
+      </section>
+
+      <section class="card back">
+        <h3>백엔드 요청 DTO</h3>
+        <pre><code>public record ChatLevel1PingRequest(
+        String sender,
+        String message
+) {
+}</code></pre>
+      </section>
+    </div>
+
+    <div class="columns">
+      <section class="card back">
+        <h3>백엔드 응답 DTO</h3>
+        <pre><code>public record ChatLevel1PongResponse(
+        String sender,
+        String message,
+        Instant serverTime
+) {
+}</code></pre>
+      </section>
+
+      <section class="card front">
+        <h3>프론트에서 받는 타입</h3>
+        <pre><code>type PongMessage = {
+  sender: string;
+  message: string;
+  serverTime: string;
+};</code></pre>
+      </section>
+    </div>
+
+    <h2>중요한 관점</h2>
+    <section class="card">
+      <ul>
+        <li>프론트의 <code>connect()</code>는 서버에 붙고, topic을 구독하는 로직이다.</li>
+        <li>백엔드의 <code>WebSocketConfig</code>는 연결 주소와 메시지 라우팅 규칙을 여는 로직이다.</li>
+        <li>백엔드의 <code>ChatStudyMessageController</code>는 실제 ping 메시지를 받아 pong으로 응답하는 로직이다.</li>
+        <li><code>/app</code>은 클라이언트가 서버 메서드로 보낼 때 붙는 prefix다.</li>
+        <li><code>/topic</code>은 서버가 구독자에게 내려줄 때 쓰는 prefix다.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">서버 로직이 어디냐는 질문에 대한 답</h2>
+      <p>Level 1의 서버 로직은 크게 두 곳이다.</p>
+      <ol>
+        <li>
+          <span class="file">WebSocketConfig.java</span>
+          <br />
+          <code>/ws</code>, <code>/app</code>, <code>/topic</code> 같은 STOMP 서버 규칙을 설정한다.
+        </li>
+        <li>
+          <span class="file">ChatStudyMessageController.java</span>
+          <br />
+          프론트가 보낸 <code>/app/chat.level1.ping</code> 메시지를 받아
+          <code>/topic/chat.level1.pong</code>으로 응답한다.
+        </li>
+      </ol>
+      <div class="warn">
+        REST API처럼 <code>@GetMapping</code>, <code>@PostMapping</code>으로 찾으면 안 된다.
+        STOMP 메시지는 <code>@MessageMapping</code>으로 받는다.
+      </div>
+    </section>
+  </main>
+</body>
+</html>

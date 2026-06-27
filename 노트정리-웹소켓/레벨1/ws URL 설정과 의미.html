@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ws URL 설정과 의미</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+    }
+
+    .mini strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--strong);
+    }
+
+    .file {
+      color: var(--blue);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">WebSocket URL</span>
+    <h1>ws URL 설정과 의미</h1>
+    <p class="lead">
+      이 문서는 프론트의 <code>brokerURL: wsUrl</code>과 백엔드의 <code>registry.addEndpoint("/ws")</code>가
+      어떻게 연결되는지, 그리고 하나의 ws URL로 프로젝트의 WebSocket 기능을 어떻게 관리하는지 정리한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">핵심 결론</h2>
+      <p>
+        <code>ws://localhost:4101/ws</code>는 <strong>WebSocket 연결을 여는 입구</strong>다.
+        이 URL 하나로 서버와 브라우저 사이에 STOMP 연결을 만든다.
+      </p>
+      <p>
+        하지만 모든 기능이 URL 하나로만 구분되는 것은 아니다.
+        연결은 <code>/ws</code> 하나로 열고, 그 연결 안에서 <code>/app</code>, <code>/topic</code>,
+        <code>/queue</code>, <code>/user</code> 같은 STOMP destination으로 기능을 나눈다.
+      </p>
+      <div class="note">
+        REST에서는 URL이 기능을 직접 나누는 경우가 많지만,
+        STOMP WebSocket에서는 연결 URL과 메시지 destination을 분리해서 생각해야 한다.
+      </div>
+    </section>
+
+    <h2>백엔드 설정</h2>
+    <section class="card">
+      <p>파일:</p>
+      <p><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/config/WebSocketConfig.java</span></p>
+      <pre><code>@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.setApplicationDestinationPrefixes("/app");
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setUserDestinationPrefix("/user");
+    }
+}</code></pre>
+    </section>
+
+    <h2>프론트 설정</h2>
+    <section class="card">
+      <p>파일:</p>
+      <p><span class="file">dev-hunt-frontend/src/features/chat-study-level1/ChatStudyLevel1Page.tsx</span></p>
+      <pre><code>function getWebSocketUrl() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4101";
+  return `${apiUrl.replace(/^http/, "ws").replace(/\/$/, "")}/ws`;
+}
+
+const wsUrl = useMemo(getWebSocketUrl, []);
+
+const client = new Client({
+  brokerURL: wsUrl,
+  ...
+});
+
+client.activate();</code></pre>
+      <p>
+        <code>NEXT_PUBLIC_API_URL</code>이 없으면 기본 API 서버 주소 <code>http://localhost:4101</code>을 사용하고,
+        이를 WebSocket 프로토콜인 <code>ws://localhost:4101</code>로 바꾼 뒤 <code>/ws</code>를 붙인다.
+      </p>
+    </section>
+
+    <h2>서로 어떻게 매칭되나?</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>개념</th>
+          <th>백엔드</th>
+          <th>프론트</th>
+          <th>의미</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>WebSocket 접속 입구</td>
+          <td><code>registry.addEndpoint("/ws")</code></td>
+          <td><code>brokerURL: "ws://localhost:4101/ws"</code></td>
+          <td>브라우저가 서버와 WebSocket 연결을 여는 주소</td>
+        </tr>
+        <tr>
+          <td>서버 메서드 호출 prefix</td>
+          <td><code>setApplicationDestinationPrefixes("/app")</code></td>
+          <td><code>publish({ destination: "/app/chat.level1.ping" })</code></td>
+          <td>클라이언트 메시지를 <code>@MessageMapping</code>으로 보내는 prefix</td>
+        </tr>
+        <tr>
+          <td>브로드캐스트 구독 prefix</td>
+          <td><code>enableSimpleBroker("/topic")</code></td>
+          <td><code>subscribe("/topic/chat.level1.pong")</code></td>
+          <td>여러 클라이언트가 같은 메시지를 받을 수 있는 topic</td>
+        </tr>
+        <tr>
+          <td>큐 prefix</td>
+          <td><code>enableSimpleBroker("/queue")</code></td>
+          <td>Level 1 미사용</td>
+          <td>보통 1:1 또는 큐 성격 메시지에 사용</td>
+        </tr>
+        <tr>
+          <td>사용자별 prefix</td>
+          <td><code>setUserDestinationPrefix("/user")</code></td>
+          <td>Level 1 미사용</td>
+          <td>로그인 사용자별 개인 메시지로 확장할 때 사용</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>/ws는 무엇인가?</h2>
+    <section class="card">
+      <p>
+        <code>/ws</code>는 STOMP 메시지를 보내는 destination이 아니라,
+        <strong>WebSocket 연결을 처음 여는 handshake endpoint</strong>다.
+      </p>
+      <p>
+        브라우저는 이 주소로 접속해서 서버와 긴 연결을 만든다.
+        연결이 열린 뒤에는 이 연결 안에서 STOMP 프레임이 오간다.
+      </p>
+      <pre><code>브라우저
+  -- WebSocket handshake --&gt;
+서버 /ws endpoint
+
+연결 성공 후
+
+브라우저
+  -- STOMP SEND / SUBSCRIBE / DISCONNECT frame --&gt;
+서버</code></pre>
+    </section>
+
+    <h2>프로젝트 WebSocket 로직을 ws URL 하나로 모두 관리하나?</h2>
+    <section class="card">
+      <p>
+        <strong>연결 입구는 하나로 관리할 수 있다.</strong>
+        현재 프로젝트에서는 모든 STOMP WebSocket 연결이 <code>/ws</code> endpoint로 들어오게 만들었다.
+      </p>
+      <p>
+        하지만 기능 구분은 <code>/ws</code> URL이 아니라 STOMP destination으로 한다.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>예시</th>
+            <th>역할</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>연결 URL</td>
+            <td><code>ws://localhost:4101/ws</code></td>
+            <td>서버와 브라우저 사이의 WebSocket 연결 생성</td>
+          </tr>
+          <tr>
+            <td>서버 호출 destination</td>
+            <td><code>/app/chat.level1.ping</code></td>
+            <td>서버의 <code>@MessageMapping</code> 메서드 실행</td>
+          </tr>
+          <tr>
+            <td>구독 destination</td>
+            <td><code>/topic/chat.level1.pong</code></td>
+            <td>서버가 보낸 메시지를 프론트가 받음</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note">
+        따라서 “ws URL 하나로 전부 관리한다”는 말은 반만 맞다.
+        연결 endpoint는 하나로 관리하고, 실제 채팅 기능들은 STOMP destination으로 나눠 관리한다.
+      </div>
+    </section>
+
+    <h2>비유로 이해하기</h2>
+    <section class="card">
+      <p>WebSocket/STOMP 구조를 전화 연결에 비유하면 다음과 같다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>개념</th>
+            <th>비유</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/ws</code></td>
+            <td>전화선을 연결하는 대표 번호</td>
+          </tr>
+          <tr>
+            <td><code>/app/...</code></td>
+            <td>상담원에게 특정 업무를 요청하는 내선 번호</td>
+          </tr>
+          <tr>
+            <td><code>/topic/...</code></td>
+            <td>공지 방송 채널</td>
+          </tr>
+          <tr>
+            <td><code>/queue/...</code></td>
+            <td>개별 대기열 또는 1:1 전달 채널</td>
+          </tr>
+          <tr>
+            <td><code>/user/...</code></td>
+            <td>특정 사용자 전용 개인 채널</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>Level 1에서의 실제 흐름</h2>
+    <section class="card">
+      <ol>
+        <li>프론트가 <code>getWebSocketUrl()</code>로 <code>ws://localhost:4101/ws</code>를 만든다.</li>
+        <li><code>new Client({ brokerURL: wsUrl })</code>로 STOMP client를 만든다.</li>
+        <li><code>client.activate()</code>로 <code>/ws</code> endpoint에 연결한다.</li>
+        <li>연결 성공 후 <code>client.subscribe("/topic/chat.level1.pong", callback)</code>을 실행한다.</li>
+        <li>Ping 버튼 클릭 시 <code>client.publish({ destination: "/app/chat.level1.ping" })</code>을 실행한다.</li>
+        <li>백엔드 <code>@MessageMapping("/chat.level1.ping")</code>이 메시지를 처리한다.</li>
+        <li>백엔드 <code>@SendTo("/topic/chat.level1.pong")</code>이 응답을 topic으로 보낸다.</li>
+        <li>프론트의 subscribe callback이 응답을 받아 로그에 출력한다.</li>
+      </ol>
+    </section>
+
+    <h2>왜 /ws 하나로 두는가?</h2>
+    <section class="card">
+      <p>
+        STOMP는 WebSocket 연결 하나 위에서 여러 destination을 주고받을 수 있다.
+        그래서 기능마다 <code>/ws-chat</code>, <code>/ws-alarm</code>, <code>/ws-video</code>처럼 endpoint를 나누지 않아도 된다.
+      </p>
+      <p>
+        일반적으로는 endpoint를 하나로 두고 destination을 기능별로 나누는 쪽이 관리하기 쉽다.
+      </p>
+      <pre><code>연결 endpoint
+  /ws
+
+기능별 destination
+  /app/chat.level1.ping
+  /app/chat.rooms.send
+  /topic/chat.rooms.{roomId}
+  /user/queue/notifications</code></pre>
+    </section>
+
+    <h2>나중에 기능이 늘어나면?</h2>
+    <section class="card">
+      <p>연결 URL은 그대로 <code>/ws</code>를 쓰고, destination만 늘리는 방식으로 확장할 수 있다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>기능</th>
+            <th>프론트 publish</th>
+            <th>프론트 subscribe</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Level 1 ping/pong</td>
+            <td><code>/app/chat.level1.ping</code></td>
+            <td><code>/topic/chat.level1.pong</code></td>
+          </tr>
+          <tr>
+            <td>채팅방 메시지</td>
+            <td><code>/app/chat.rooms.send</code></td>
+            <td><code>/topic/chat.rooms.{roomId}</code></td>
+          </tr>
+          <tr>
+            <td>입장/퇴장 이벤트</td>
+            <td><code>/app/chat.rooms.enter</code></td>
+            <td><code>/topic/chat.rooms.{roomId}.events</code></td>
+          </tr>
+          <tr>
+            <td>개인 알림</td>
+            <td><code>/app/notifications.read</code></td>
+            <td><code>/user/queue/notifications</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>언제 endpoint를 여러 개로 나누나?</h2>
+    <section class="card">
+      <p>대부분의 채팅 기능은 <code>/ws</code> 하나로 충분하다. endpoint를 나누는 경우는 보통 다음처럼 성격이 크게 다를 때다.</p>
+      <ul>
+        <li>인증 정책이 완전히 다른 WebSocket 연결이 필요할 때</li>
+        <li>운영/관리용 WebSocket과 사용자용 WebSocket을 물리적으로 분리하고 싶을 때</li>
+        <li>서버 인프라, 라우팅, 모니터링 정책을 endpoint별로 다르게 가져가야 할 때</li>
+      </ul>
+      <div class="warn">
+        학습 단계와 일반적인 서비스 채팅에서는 endpoint를 여러 개 만들기보다 <code>/ws</code> 하나로 시작하는 편이 단순하고 좋다.
+      </div>
+    </section>
+
+    <h2>정리</h2>
+    <section class="card">
+      <ul>
+        <li><code>/ws</code>는 WebSocket 연결을 여는 입구다.</li>
+        <li>프론트의 <code>brokerURL: wsUrl</code>은 백엔드의 <code>addEndpoint("/ws")</code>와 매칭된다.</li>
+        <li><code>/app</code>, <code>/topic</code>, <code>/queue</code>, <code>/user</code>는 연결 URL이 아니라 STOMP destination prefix다.</li>
+        <li>프로젝트의 WebSocket 연결 endpoint는 하나로 둘 수 있다.</li>
+        <li>실제 기능 구분은 destination으로 한다.</li>
+        <li>Level 1에서는 <code>/ws</code>, <code>/app/chat.level1.ping</code>, <code>/topic/chat.level1.pong</code> 세 개를 이해하면 된다.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

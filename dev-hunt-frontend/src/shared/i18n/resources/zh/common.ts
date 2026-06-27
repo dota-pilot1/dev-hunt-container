@@ -1,0 +1,15 @@
+export const common = {
+  brand: "DevHunt",
+  tagline: "开发公司招聘与培训管理平台。",
+  description: "即将添加候选人管理、培训课程和项目任务管理等功能。",
+  loading: "处理中...",
+  confirm: "确认",
+  cancel: "取消",
+  save: "保存",
+  delete: "删除",
+  edit: "编辑",
+  close: "关闭",
+  search: "搜索",
+  language: "语言",
+  theme: "主题",
+};

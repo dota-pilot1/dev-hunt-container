@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>웹소켓 Level 1 로직 정리</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --accent: #2563eb;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      font-size: 22px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .file {
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Level 1</span>
+    <h1>WebSocket STOMP 연결 로직 정리</h1>
+    <p class="lead">
+      목표는 브라우저와 Spring Boot 서버가 STOMP over WebSocket으로 연결되고,
+      프론트에서 ping을 보내면 서버가 pong을 topic으로 브로드캐스트하는 최소 흐름을 검증하는 것이다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">전체 흐름</h2>
+      <ol>
+        <li>프론트가 <code>ws://localhost:4101/ws</code>로 STOMP 연결을 연다.</li>
+        <li>연결 성공 후 프론트가 <code>/topic/chat.level1.pong</code>을 구독한다.</li>
+        <li>사용자가 Ping 버튼을 누르면 프론트가 <code>/app/chat.level1.ping</code>으로 메시지를 발행한다.</li>
+        <li>백엔드의 <code>@MessageMapping("/chat.level1.ping")</code> 메서드가 메시지를 받는다.</li>
+        <li>백엔드는 응답 DTO를 만들어 <code>/topic/chat.level1.pong</code>으로 전송한다.</li>
+        <li>프론트 구독 콜백이 pong 메시지를 받아 이벤트 로그에 출력한다.</li>
+      </ol>
+    </section>
+
+    <h2>프로세스별 관련 파일</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>프로세스</th>
+          <th>파일</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1. 의존성 추가</td>
+          <td><span class="file">dev-hunt-server/build.gradle</span></td>
+          <td><code>spring-boot-starter-websocket</code> 추가. Spring Boot에서 WebSocket, STOMP, Spring Messaging 기반 구성을 사용하기 위한 starter.</td>
+        </tr>
+        <tr>
+          <td>2. 보안 허용</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/config/SecurityConfig.java</span></td>
+          <td><code>/ws</code>, <code>/ws/**</code> 요청을 permitAll 처리. WebSocket handshake가 Spring Security 필터에서 막히지 않게 한다.</td>
+        </tr>
+        <tr>
+          <td>3. STOMP 서버 설정</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/config/WebSocketConfig.java</span></td>
+          <td>STOMP endpoint, publish prefix, subscribe broker prefix를 정의한다.</td>
+        </tr>
+        <tr>
+          <td>4. 메시지 DTO</td>
+          <td>
+            <span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/dto/ChatLevel1PingRequest.java</span><br />
+            <span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/dto/ChatLevel1PongResponse.java</span>
+          </td>
+          <td>프론트가 보내는 ping 요청과 서버가 내려주는 pong 응답 구조를 정의한다.</td>
+        </tr>
+        <tr>
+          <td>5. 메시지 처리</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/ChatStudyMessageController.java</span></td>
+          <td><code>/app/chat.level1.ping</code>으로 들어온 메시지를 받고 <code>/topic/chat.level1.pong</code>으로 응답한다.</td>
+        </tr>
+        <tr>
+          <td>6. 프론트 STOMP 패키지</td>
+          <td><span class="file">dev-hunt-frontend/package.json</span></td>
+          <td><code>@stomp/stompjs</code> 클라이언트 사용. 브라우저에서 STOMP 연결, 구독, 발행을 처리한다.</td>
+        </tr>
+        <tr>
+          <td>7. Level 1 라우팅</td>
+          <td><span class="file">dev-hunt-frontend/src/app/chat-study/[level]/page.tsx</span></td>
+          <td><code>level-1</code>일 때 실제 STOMP 테스트 화면인 <code>ChatStudyLevel1Page</code>를 렌더링한다.</td>
+        </tr>
+        <tr>
+          <td>8. 테스트 화면</td>
+          <td><span class="file">dev-hunt-frontend/src/features/chat-study-level1/ChatStudyLevel1Page.tsx</span></td>
+          <td>연결, 연결 해제, ping 전송, pong 수신 로그를 담당하는 Level 1 핵심 화면.</td>
+        </tr>
+        <tr>
+          <td>9. 메뉴 연결</td>
+          <td>
+            <span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/config/MenuSeeder.java</span><br />
+            <span class="file">dev-hunt-frontend/src/widgets/header/ui/Header.tsx</span>
+          </td>
+          <td>메뉴에서 <code>채팅 &gt; 채팅 스터디 &gt; Level 1</code>로 접근할 수 있게 연결한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>백엔드 로직</h2>
+    <div class="grid">
+      <section class="card">
+        <h3>1. WebSocketConfig</h3>
+        <p>STOMP 연결의 기준 경로와 메시지 prefix를 정한다.</p>
+        <pre><code>@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.setApplicationDestinationPrefixes("/app");
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setUserDestinationPrefix("/user");
+    }
+}</code></pre>
+        <ul>
+          <li><code>/ws</code>: 브라우저가 접속하는 WebSocket endpoint</li>
+          <li><code>/app</code>: 클라이언트가 서버 메서드로 메시지를 보낼 때 붙이는 prefix</li>
+          <li><code>/topic</code>: 여러 클라이언트가 구독하는 broadcast 목적지</li>
+          <li><code>/queue</code>: 사용자별 또는 1:1 메시지로 확장할 때 사용할 목적지</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h3>2. ChatStudyMessageController</h3>
+        <p>클라이언트 publish 메시지를 받아 서버 응답을 topic으로 내보낸다.</p>
+        <pre><code>@MessageMapping("/chat.level1.ping")
+@SendTo("/topic/chat.level1.pong")
+public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+    return new ChatLevel1PongResponse(
+            sender,
+            "pong: " + message,
+            Instant.now()
+    );
+}</code></pre>
+        <ul>
+          <li>프론트 발행 주소: <code>/app/chat.level1.ping</code></li>
+          <li>실제 매핑 주소: <code>/chat.level1.ping</code></li>
+          <li>응답 구독 주소: <code>/topic/chat.level1.pong</code></li>
+        </ul>
+      </section>
+    </div>
+
+    <h2>프론트 로직</h2>
+    <section class="card">
+      <h3>1. 연결 URL 생성</h3>
+      <p><code>NEXT_PUBLIC_API_URL</code>이 있으면 그 값을 사용하고, 없으면 <code>http://localhost:4101</code>을 기본값으로 사용한다.</p>
+      <pre><code>function getWebSocketUrl() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4101";
+  return `${apiUrl.replace(/^http/, "ws").replace(/\/$/, "")}/ws`;
+}</code></pre>
+    </section>
+
+    <section class="card">
+      <h3>2. STOMP Client 생성</h3>
+      <p>연결 버튼을 누르면 <code>@stomp/stompjs</code>의 <code>Client</code>를 생성하고 활성화한다.</p>
+      <pre><code>const client = new Client({
+  brokerURL: wsUrl,
+  reconnectDelay: 0,
+  onConnect: () =&gt; {
+    client.subscribe("/topic/chat.level1.pong", callback);
+  },
+});</code></pre>
+    </section>
+
+    <section class="card">
+      <h3>3. Ping 발행</h3>
+      <p>연결된 상태에서 버튼을 누르면 서버의 <code>@MessageMapping</code>으로 메시지를 보낸다.</p>
+      <pre><code>client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify({
+    sender,
+    message,
+  }),
+});</code></pre>
+    </section>
+
+    <h2>테스트 절차</h2>
+    <ol>
+      <li>백엔드 서버를 재시작한다. 새 의존성과 WebSocket 설정은 재시작 후 반영된다.</li>
+      <li>프론트에서 <code>http://localhost:4300/chat-study/level-1/</code>로 이동한다.</li>
+      <li><strong>연결</strong> 버튼을 누른다.</li>
+      <li>상태가 <strong>연결됨</strong>으로 바뀌고 이벤트 로그에 연결 완료가 찍히는지 확인한다.</li>
+      <li>메시지를 입력하고 <strong>Ping 보내기</strong>를 누른다.</li>
+      <li>로그에 <code>sent</code>와 <code>received</code>가 모두 찍히는지 확인한다.</li>
+      <li><strong>연결 해제</strong> 버튼을 누르고 상태가 끊김으로 바뀌는지 확인한다.</li>
+    </ol>
+
+    <h2>Level 1에서 확인하려는 것</h2>
+    <ul>
+      <li>Spring Boot WebSocket starter가 정상 동작하는지</li>
+      <li>STOMP endpoint <code>/ws</code>로 브라우저가 연결되는지</li>
+      <li><code>/app</code>으로 보낸 메시지가 <code>@MessageMapping</code>에 도착하는지</li>
+      <li><code>/topic</code> 구독자가 서버 응답을 받는지</li>
+      <li>프론트에서 연결 상태와 에러를 눈으로 확인할 수 있는지</li>
+    </ul>
+
+    <h2>다음 단계</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>단계</th>
+          <th>확장 내용</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Level 2</td>
+          <td>ping/pong이 아니라 실제 채팅 메시지 입력/목록 렌더링으로 변경한다.</td>
+        </tr>
+        <tr>
+          <td>Level 3</td>
+          <td>채팅방 ID를 topic에 포함해 방별 메시지를 분리한다. 예: <code>/topic/chat.rooms.{roomId}</code></td>
+        </tr>
+        <tr>
+          <td>Level 4</td>
+          <td>입장/퇴장 이벤트, 접속자 목록, 온라인 상태를 추가한다.</td>
+        </tr>
+        <tr>
+          <td>Level 5</td>
+          <td>메시지 DB 저장, 이전 메시지 조회, 인증 사용자 연동을 추가한다.</td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

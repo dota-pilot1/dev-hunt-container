@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>STOMP 연결 객체와 clientRef 설명</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .mini {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+    }
+
+    .mini strong {
+      display: block;
+      color: var(--strong);
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">보충 설명</span>
+    <h1>STOMP 연결 객체와 clientRef 설명</h1>
+    <p class="lead">
+      이 문서는 <code>new Client(...)</code>로 만들어지는 연결 객체가 무엇인지,
+      그리고 왜 <code>clientRef.current = client</code>로 저장해야 하는지 정리한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">핵심 결론</h2>
+      <p>
+        <code>client</code>는 STOMP 연결을 제어하는 객체다.
+        연결 시작, 구독, 메시지 전송, 연결 해제를 모두 이 객체로 처리한다.
+      </p>
+      <p>
+        <code>clientRef.current = client</code>는 이 연결 객체를 React 컴포넌트가 계속 기억하게 저장하는 코드다.
+        저장하지 않으면 연결 해제, ping 전송, 중복 연결 방지, unmount 정리를 안정적으로 할 수 없다.
+      </p>
+    </section>
+
+    <h2>연결 객체란?</h2>
+    <section class="card">
+      <pre><code>const client = new Client({
+  brokerURL: wsUrl,
+  onConnect: () =&gt; {
+    client.subscribe("/topic/chat.level1.pong", callback);
+  },
+});</code></pre>
+      <p>
+        여기서 <code>client</code>는 실제 WebSocket 연결 그 자체라기보다,
+        <strong>WebSocket 위에서 STOMP 프로토콜을 제어하는 컨트롤러 객체</strong>에 가깝다.
+      </p>
+      <p>이 객체가 할 수 있는 대표 작업은 다음과 같다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>메서드/속성</th>
+            <th>역할</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>client.activate()</code></td>
+            <td>WebSocket/STOMP 연결을 시작한다.</td>
+          </tr>
+          <tr>
+            <td><code>client.deactivate()</code></td>
+            <td>연결을 종료한다.</td>
+          </tr>
+          <tr>
+            <td><code>client.subscribe(destination, callback)</code></td>
+            <td>특정 topic/queue를 구독하고, 메시지가 오면 callback을 실행한다.</td>
+          </tr>
+          <tr>
+            <td><code>client.publish(...)</code></td>
+            <td>서버로 메시지를 발행한다.</td>
+          </tr>
+          <tr>
+            <td><code>client.connected</code></td>
+            <td>현재 STOMP 연결이 완료된 상태인지 확인한다.</td>
+          </tr>
+          <tr>
+            <td><code>client.active</code></td>
+            <td>client가 활성 상태인지, 또는 연결 시도 중인지 확인한다.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>new Client는 연결이 아니다</h2>
+    <section class="card">
+      <p>
+        <code>new Client({...})</code>는 연결을 바로 여는 코드가 아니다.
+        연결에 필요한 설정과 콜백을 가진 객체를 만드는 단계다.
+      </p>
+      <pre><code>const client = new Client({...}); // 설정 객체 생성
+
+client.activate();               // 실제 연결 시작</code></pre>
+      <div class="note">
+        연결 성공 여부는 <code>await</code>로 받는 것이 아니라 <code>onConnect</code>, <code>onWebSocketError</code>,
+        <code>onStompError</code> 같은 이벤트 콜백으로 처리한다.
+      </div>
+    </section>
+
+    <h2>왜 일반 변수로 두면 안 되나?</h2>
+    <section class="card">
+      <p>만약 이렇게만 쓰면:</p>
+      <pre><code>const connect = () =&gt; {
+  const client = new Client({...});
+  client.activate();
+};</code></pre>
+      <p>
+        <code>client</code>는 <code>connect()</code> 함수 안에서만 접근 가능한 지역 변수다.
+        함수가 끝나면 다른 함수에서는 이 객체를 직접 사용할 수 없다.
+      </p>
+      <p>그 결과 다음 작업이 어려워진다.</p>
+      <ul>
+        <li>연결 해제 버튼에서 같은 client를 찾아 <code>deactivate()</code> 호출</li>
+        <li>Ping 버튼에서 같은 client를 찾아 <code>publish()</code> 호출</li>
+        <li>이미 연결 중인지 확인해서 중복 연결 방지</li>
+        <li>페이지를 벗어날 때 기존 연결 정리</li>
+      </ul>
+    </section>
+
+    <h2>그래서 clientRef에 저장한다</h2>
+    <section class="card">
+      <pre><code>const clientRef = useRef&lt;Client | null&gt;(null);
+
+const connect = () =&gt; {
+  const client = new Client({...});
+
+  clientRef.current = client;
+  client.activate();
+};</code></pre>
+      <p>
+        <code>useRef</code>는 React 컴포넌트가 렌더링을 다시 해도 값을 유지할 수 있는 저장소다.
+        <code>clientRef.current</code>에 client를 넣어두면 다른 함수에서도 같은 연결 객체를 꺼내 쓸 수 있다.
+      </p>
+    </section>
+
+    <h2>clientRef.current = client의 의미</h2>
+    <section class="card">
+      <pre><code>clientRef.current = client;</code></pre>
+      <p>이 한 줄의 의미는 다음과 같다.</p>
+      <ul>
+        <li>방금 만든 STOMP client 객체를 컴포넌트 전역 보관소에 저장한다.</li>
+        <li>다른 함수에서 <code>clientRef.current</code>로 같은 객체를 다시 꺼낼 수 있게 한다.</li>
+        <li>렌더링이 다시 되어도 client 객체를 잃어버리지 않게 한다.</li>
+      </ul>
+      <div class="note">
+        쉽게 말하면 <code>const client = new Client(...)</code>는 연결 도구를 만드는 것이고,
+        <code>clientRef.current = client</code>는 그 도구를 계속 쓸 수 있게 보관함에 넣는 것이다.
+      </div>
+    </section>
+
+    <h2>clientRef가 필요한 실제 코드들</h2>
+
+    <section class="card">
+      <h3>1. 중복 연결 방지</h3>
+      <pre><code>if (clientRef.current?.active) return;</code></pre>
+      <p>
+        이미 client가 활성 상태라면 새 client를 만들지 않는다.
+        사용자가 연결 버튼을 여러 번 눌러도 WebSocket 연결이 중복 생성되지 않게 막는다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>2. 연결 해제</h3>
+      <pre><code>const disconnect = async () =&gt; {
+  const client = clientRef.current;
+  if (!client) return;
+
+  await client.deactivate();
+  clientRef.current = null;
+};</code></pre>
+      <p>
+        연결 해제 버튼을 누를 때도 처음 만든 같은 client 객체를 찾아야 한다.
+        그래서 <code>clientRef.current</code>에서 꺼내 <code>deactivate()</code>를 호출한다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>3. Ping 전송</h3>
+      <pre><code>const sendPing = () =&gt; {
+  const client = clientRef.current;
+  if (!client?.connected) return;
+
+  client.publish({
+    destination: "/app/chat.level1.ping",
+    body: JSON.stringify(payload),
+  });
+};</code></pre>
+      <p>
+        메시지를 보낼 때도 같은 STOMP client가 필요하다.
+        연결된 client가 있어야 서버로 publish할 수 있다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>4. 컴포넌트 종료 시 정리</h3>
+      <pre><code>useEffect(() =&gt; {
+  return () =&gt; {
+    void clientRef.current?.deactivate();
+  };
+}, []);</code></pre>
+      <p>
+        사용자가 페이지를 벗어나면 기존 WebSocket 연결을 닫아야 한다.
+        ref에 저장해두면 unmount cleanup에서도 같은 client를 찾아 정리할 수 있다.
+      </p>
+    </section>
+
+    <h2>왜 useState가 아니라 useRef인가?</h2>
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>useState</th>
+            <th>useRef</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>값 변경 시 렌더링</td>
+            <td>다시 렌더링됨</td>
+            <td>다시 렌더링되지 않음</td>
+          </tr>
+          <tr>
+            <td>화면 표시용 데이터</td>
+            <td>적합</td>
+            <td>부적합</td>
+          </tr>
+          <tr>
+            <td>외부 객체 보관</td>
+            <td>가능하지만 불필요한 렌더링이 생길 수 있음</td>
+            <td>적합</td>
+          </tr>
+          <tr>
+            <td>STOMP client 저장</td>
+            <td>권장하지 않음</td>
+            <td>권장</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        STOMP client 객체는 화면에 직접 보여줄 값이 아니다.
+        연결 상태는 <code>useState</code>로 관리하고,
+        실제 연결 객체는 <code>useRef</code>로 보관하는 것이 자연스럽다.
+      </p>
+    </section>
+
+    <h2>상태와 객체를 분리해서 생각하기</h2>
+    <div class="grid">
+      <div class="mini">
+        <strong>connectionState</strong>
+        <p>화면에 보여줄 상태다.</p>
+        <p><code>idle</code>, <code>connecting</code>, <code>connected</code>, <code>disconnected</code>, <code>error</code></p>
+      </div>
+      <div class="mini">
+        <strong>clientRef.current</strong>
+        <p>실제 STOMP 연결을 제어하는 객체다.</p>
+        <p><code>activate</code>, <code>deactivate</code>, <code>subscribe</code>, <code>publish</code></p>
+      </div>
+    </div>
+    <section class="card">
+      <p>둘은 역할이 다르다.</p>
+      <ul>
+        <li><code>connectionState</code>: 사용자에게 현재 상태를 보여주기 위한 값</li>
+        <li><code>clientRef.current</code>: 실제 연결을 조작하기 위한 객체</li>
+      </ul>
+    </section>
+
+    <h2>중복 생성 방지 흐름</h2>
+    <section class="card">
+      <ol>
+        <li>처음 연결 버튼 클릭</li>
+        <li><code>clientRef.current</code>는 <code>null</code>이므로 통과</li>
+        <li><code>new Client(...)</code>로 client 생성</li>
+        <li><code>clientRef.current = client</code>로 저장</li>
+        <li><code>client.activate()</code>로 연결 시작</li>
+        <li>다시 연결 버튼 클릭</li>
+        <li><code>clientRef.current?.active</code>가 true라서 <code>return</code></li>
+        <li>새 client가 만들어지지 않음</li>
+      </ol>
+    </section>
+
+    <h2>잘못된 예시</h2>
+    <section class="card">
+      <h3>연결할 때마다 새 client를 만들고 저장하지 않는 경우</h3>
+      <pre><code>const connect = () =&gt; {
+  const client = new Client({...});
+  client.activate();
+};
+
+const sendPing = () =&gt; {
+  // 여기서는 위 client를 알 수 없다.
+};</code></pre>
+      <p>
+        이 구조에서는 <code>sendPing</code>, <code>disconnect</code>에서 같은 client를 사용할 수 없다.
+        또한 연결 버튼을 누를 때마다 새 client가 만들어질 수 있다.
+      </p>
+    </section>
+
+    <h2>현재 구조</h2>
+    <section class="card">
+      <pre><code>const clientRef = useRef&lt;Client | null&gt;(null);
+
+const connect = () =&gt; {
+  if (clientRef.current?.active) return;
+
+  const client = new Client({...});
+  clientRef.current = client;
+  client.activate();
+};
+
+const sendPing = () =&gt; {
+  const client = clientRef.current;
+  if (!client?.connected) return;
+  client.publish(...);
+};
+
+const disconnect = async () =&gt; {
+  const client = clientRef.current;
+  if (!client) return;
+  await client.deactivate();
+  clientRef.current = null;
+};</code></pre>
+      <p>
+        이 구조는 연결 객체를 하나의 ref에 보관하고, 필요한 함수들이 같은 객체를 공유한다.
+        React에서 WebSocket, STOMP, 타이머, 외부 라이브러리 인스턴스를 다룰 때 흔히 쓰는 방식이다.
+      </p>
+    </section>
+
+    <h2>정리</h2>
+    <section class="card">
+      <ul>
+        <li><code>client</code>는 STOMP 연결을 제어하는 객체다.</li>
+        <li><code>new Client(...)</code>는 객체 생성이고, 실제 연결은 <code>client.activate()</code>다.</li>
+        <li><code>clientRef.current = client</code>는 만든 client를 계속 쓰기 위해 저장하는 코드다.</li>
+        <li><code>useRef</code>는 렌더링과 무관하게 외부 객체를 보관하기 좋다.</li>
+        <li>중복 연결 방지, 연결 해제, 메시지 전송, unmount 정리에 모두 <code>clientRef.current</code>가 필요하다.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
