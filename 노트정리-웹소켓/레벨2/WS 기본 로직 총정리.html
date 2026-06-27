@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WS 기본 로직 총정리</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f7f7f8;
+      color: #171717;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: #111827;
+      line-height: 1.25;
+    }
+
+    h1 {
+      margin-top: 8px;
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 10px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: #f3f4f6;
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    th, td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: #111827;
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: #6b7280;
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px;
+    }
+
+    .note {
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .ok {
+      border-left: 4px solid #059669;
+      background: #ecfdf5;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .node {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px 14px;
+    }
+
+    .node strong {
+      display: block;
+      color: #111827;
+    }
+
+    .arrow {
+      color: #6b7280;
+      text-align: center;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">WebSocket + STOMP</span>
+    <h1>WS 기본 로직 총정리</h1>
+    <p class="lead">
+      WebSocket 연결 객체를 만들고, STOMP 규칙으로 요청과 응답을 주고받는 기본 로직을 한 번에 정리한다.
+      Level 2 기준으로 서버 설정, 프론트 연결, 구독, 메시지 발행, 응답 처리까지 이어진다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">전체 요약</h2>
+      <p>
+        웹소켓은 연결 통로를 만들고, STOMP는 그 통로 위에서 메시지를 어느 주소로 보낼지 정하는 규칙이다.
+        프론트는 <code>Client</code> 객체로 서버에 연결하고, topic을 구독해둔 뒤, 메시지를 application 주소로 발행한다.
+        서버는 요청을 받아 응답 DTO를 만들고, 구독 topic으로 다시 브로드캐스트한다.
+      </p>
+    </section>
+
+    <h2>전체 흐름 도식</h2>
+    <div class="flow">
+      <div class="node">
+        <strong>1. 서버가 WebSocket/STOMP 설정을 연다</strong>
+        <code>/ws</code> endpoint, <code>/app</code> 요청 prefix, <code>/topic</code> 응답 broker를 설정한다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>2. 프론트가 STOMP client 객체를 만든다</strong>
+        <code>new Client({ brokerURL: wsUrl, ... })</code>로 웹소켓 연결 객체를 준비한다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>3. 프론트가 연결한다</strong>
+        <code>client.activate()</code>로 <code>ws://localhost:4101/ws</code>에 연결한다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>4. 연결 성공 후 topic을 구독한다</strong>
+        <code>client.subscribe("/topic/chat.level2.messages", callback)</code>으로 응답 수신 콜백을 등록한다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>5. 사용자가 메시지를 보낸다</strong>
+        <code>client.publish({ destination: "/app/chat.level2.send", body })</code>로 서버에 요청한다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>6. 서버 컨트롤러가 요청을 받는다</strong>
+        <code>@MessageMapping("/chat.level2.send")</code> 메서드가 요청 DTO를 받는다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>7. 서버가 구독 topic으로 응답한다</strong>
+        <code>@SendTo("/topic/chat.level2.messages")</code>로 구독 클라이언트들에게 응답 DTO를 보낸다.
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>8. 프론트 구독 콜백이 응답을 처리한다</strong>
+        <code>JSON.parse(frame.body)</code> 후 <code>setMessages()</code>로 화면 목록에 추가한다.
+      </div>
+    </div>
+
+    <h2>웹소켓 객체로 요청과 응답을 주고받는다</h2>
+    <p>
+      프론트에서 쓰는 핵심 객체는 <code>@stomp/stompjs</code>의 <code>Client</code>다.
+      이 객체 하나가 연결, 구독, 발행을 모두 담당한다.
+    </p>
+    <pre><code>const client = new Client({
+  brokerURL: wsUrl,
+  reconnectDelay: 0,
+  onConnect: () =&gt; {
+    // 연결 성공 후 구독 등록
+  },
+  onStompError: (frame) =&gt; {
+    // STOMP 에러 처리
+  },
+  onWebSocketError: () =&gt; {
+    // WebSocket 에러 처리
+  },
+});</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>메서드</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>client.activate()</code></td>
+          <td>서버의 WebSocket endpoint로 실제 연결을 시작한다.</td>
+        </tr>
+        <tr>
+          <td><code>client.subscribe(topic, callback)</code></td>
+          <td>서버가 특정 topic으로 보내는 응답을 받도록 콜백을 등록한다.</td>
+        </tr>
+        <tr>
+          <td><code>client.publish({ destination, body })</code></td>
+          <td>서버의 application destination으로 메시지를 보낸다.</td>
+        </tr>
+        <tr>
+          <td><code>client.deactivate()</code></td>
+          <td>연결을 종료한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>서버 핵심 설정</h2>
+    <p>
+      서버에서 가장 중요한 설정은 <code>WebSocketConfig</code>다.
+      여기서 연결 주소와 STOMP 메시지 주소 규칙이 결정된다.
+    </p>
+    <pre><code>@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws")
+                .setAllowedOriginPatterns("http://localhost:*", "http://127.0.0.1:*");
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.setApplicationDestinationPrefixes("/app");
+        registry.enableSimpleBroker("/topic", "/queue");
+        registry.setUserDestinationPrefix("/user");
+    }
+}</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>설정</th>
+          <th>의미</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>addEndpoint("/ws")</code></td>
+          <td>프론트가 연결할 WebSocket endpoint다. 최종 연결 URL은 <code>ws://localhost:4101/ws</code>가 된다.</td>
+        </tr>
+        <tr>
+          <td><code>setApplicationDestinationPrefixes("/app")</code></td>
+          <td>프론트가 서버 컨트롤러로 메시지를 보낼 때 사용하는 prefix다.</td>
+        </tr>
+        <tr>
+          <td><code>enableSimpleBroker("/topic", "/queue")</code></td>
+          <td>서버가 클라이언트들에게 메시지를 뿌리는 broker prefix다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>프론트에서 이렇게 연결한다</h2>
+    <p>
+      먼저 API 주소를 WebSocket 주소로 바꾼다.
+      <code>http://localhost:4101</code>이면 <code>ws://localhost:4101/ws</code>가 된다.
+    </p>
+    <pre><code>function getWebSocketUrl() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4101";
+  return `${apiUrl.replace(/^http/, "ws").replace(/\/$/, "")}/ws`;
+}</code></pre>
+
+    <p>
+      그리고 <code>connect()</code>에서 STOMP client를 만들고 활성화한다.
+    </p>
+    <pre><code>const connect = () =&gt; {
+  if (clientRef.current?.active) return;
+
+  setConnectionState("connecting");
+
+  const client = new Client({
+    brokerURL: wsUrl,
+    reconnectDelay: 0,
+    onConnect: () =&gt; {
+      setConnectionState("connected");
+      // 여기서 구독 등록
+    },
+  });
+
+  clientRef.current = client;
+  client.activate();
+};</code></pre>
+
+    <div class="note">
+      <code>clientRef.current</code>에 저장하는 이유는 렌더링과 무관하게 같은 STOMP client 객체를 계속 들고 있어야 하기 때문이다.
+      메시지를 보낼 때도 이 ref에서 client를 꺼내 사용한다.
+    </div>
+
+    <h2>구독하고</h2>
+    <p>
+      연결 성공 후에는 서버 응답을 받을 topic을 구독한다.
+      이 코드는 “지금 메시지를 보내라”가 아니라 “앞으로 이 주소로 오는 메시지를 받겠다”는 등록이다.
+    </p>
+    <pre><code>subscriptionRef.current = client.subscribe("/topic/chat.level2.messages", (frame: IMessage) =&gt; {
+  const body = JSON.parse(frame.body) as ChatMessage;
+  setMessages((prev) =&gt; [...prev, body].slice(-100));
+});</code></pre>
+
+    <p>
+      서버가 <code>/topic/chat.level2.messages</code>로 응답을 보내면 이 콜백이 실행된다.
+      콜백은 응답 body를 JSON으로 파싱하고, <code>messages</code> state에 추가한다.
+    </p>
+
+    <h2>메시지 보내고</h2>
+    <p>
+      사용자가 보내기 버튼을 누르면 <code>sendMessage()</code>가 실행된다.
+      여기서는 구독 주소가 아니라 서버 컨트롤러로 들어가는 <code>/app/chat.level2.send</code>로 보낸다.
+    </p>
+    <pre><code>const sendMessage = (event?: FormEvent&lt;HTMLFormElement&gt;) =&gt; {
+  event?.preventDefault();
+
+  const client = clientRef.current;
+  const content = draft.trim();
+  if (!client?.connected || !content) return;
+
+  client.publish({
+    destination: "/app/chat.level2.send",
+    body: JSON.stringify({ sender, content }),
+  });
+  setDraft("");
+};</code></pre>
+
+    <h3>보내는 JSON</h3>
+    <pre><code>{
+  "sender": "오현석",
+  "content": "안녕하세요"
+}</code></pre>
+
+    <h2>서버 컨트롤러가 요청 받고 응답한다</h2>
+    <p>
+      프론트가 <code>/app/chat.level2.send</code>로 보낸 메시지는
+      서버의 <code>@MessageMapping("/chat.level2.send")</code> 메서드로 들어온다.
+      메서드가 반환한 값은 <code>@SendTo</code>에 적힌 topic으로 전송된다.
+    </p>
+    <pre><code>@MessageMapping("/chat.level2.send")
+@SendTo("/topic/chat.level2.messages")
+public ChatLevel2MessageResponse sendMessage(ChatLevel2MessageRequest request) {
+    String sender = request.sender() == null || request.sender().isBlank()
+            ? "anonymous"
+            : request.sender().trim();
+    String content = request.content() == null || request.content().isBlank()
+            ? "(empty)"
+            : request.content().trim();
+
+    return new ChatLevel2MessageResponse(
+            UUID.randomUUID().toString(),
+            sender,
+            content,
+            Instant.now()
+    );
+}</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>어노테이션</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>@MessageMapping("/chat.level2.send")</code></td>
+          <td>프론트가 <code>/app/chat.level2.send</code>로 보낸 요청을 받는 입구다.</td>
+        </tr>
+        <tr>
+          <td><code>@SendTo("/topic/chat.level2.messages")</code></td>
+          <td>메서드 반환값을 구독 중인 클라이언트들에게 보내는 출구다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>응답은 이렇게 처리</h2>
+    <p>
+      서버가 응답을 topic으로 보내면, 프론트에서 미리 등록해둔 구독 콜백이 실행된다.
+      이때 화면에 추가되는 것은 입력창이 아니라 <code>messages</code> 목록이다.
+    </p>
+    <pre><code>const body = JSON.parse(frame.body) as ChatMessage;
+setMessages((prev) =&gt; [...prev, body].slice(-100));</code></pre>
+
+    <h3>응답 JSON</h3>
+    <pre><code>{
+  "id": "cc7ae965-3e5c-4f40-b7db-08af9a5f77d6",
+  "sender": "오현석",
+  "content": "안녕하세요",
+  "sentAt": "2026-06-27T10:52:28.741791Z"
+}</code></pre>
+
+    <p>
+      <code>setMessages()</code>로 state가 바뀌면 React가 다시 렌더링하고,
+      <code>messages.map(...)</code> 부분에서 새 말풍선이 화면에 표시된다.
+    </p>
+
+    <h2>주소 두 개만 구분하면 된다</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>주소</th>
+          <th>방향</th>
+          <th>설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/app/chat.level2.send</code></td>
+          <td>프론트 → 서버</td>
+          <td>사용자가 메시지를 보낼 때 publish하는 요청 주소다.</td>
+        </tr>
+        <tr>
+          <td><code>/topic/chat.level2.messages</code></td>
+          <td>서버 → 프론트들</td>
+          <td>서버가 응답을 브로드캐스트하고, 프론트가 subscribe하는 응답 주소다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <section class="ok">
+      <strong>최종 정리:</strong>
+      프론트는 <code>Client</code> 웹소켓 객체로 서버에 연결한다.
+      연결 후 <code>/topic/chat.level2.messages</code>를 구독해 응답 통로를 열어둔다.
+      사용자가 메시지를 보내면 <code>/app/chat.level2.send</code>로 publish한다.
+      서버 컨트롤러는 요청을 받아 응답 DTO를 만들고 <code>@SendTo</code>로 topic에 뿌린다.
+      프론트 구독 콜백은 그 응답을 받아 <code>messages</code> state에 추가하고 화면을 다시 그린다.
+    </section>
+  </main>
+</body>
+</html>
