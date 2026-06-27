@@ -57,7 +57,7 @@ function ChatStudyLevel1Inner() {
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
   const [message, setMessage] = useState("hello websocket stomp");
   const [logs, setLogs] = useState<LogItem[]>([]);
-  const wsUrl = useMemo(getWebSocketUrl, []);
+  const wsUrl = useMemo(() => getWebSocketUrl(), []);
   const sender = user?.username ?? user?.email ?? "tester";
   const connected = connectionState === "connected";
 
@@ -207,7 +207,7 @@ function ChatStudyLevel1Inner() {
                 <button
                   type="button"
                   onClick={disconnect}
-                  disabled={!clientRef.current?.active}
+                  disabled={connectionState === "idle" || connectionState === "disconnected"}
                   className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-semibold transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plug className="h-4 w-4" />

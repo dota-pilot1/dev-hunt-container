@@ -1,6 +1,7 @@
 import { ChatOverviewPage } from "@/features/chat-overview/ChatOverviewPage";
 import { getChatStudyPageConfig } from "@/features/chat-overview/chatPageConfig";
 import { ChatStudyLevel1Page } from "@/features/chat-study-level1/ChatStudyLevel1Page";
+import { ChatStudyLevel2Page } from "@/features/chat-study-level2/ChatStudyLevel2Page";
 
 type ChatStudyLevelPageProps = {
   params: Promise<{
@@ -23,6 +24,10 @@ export default async function ChatStudyLevelPage({ params }: ChatStudyLevelPageP
 
   if (level === "level-1") {
     return <ChatStudyLevel1Page />;
+  }
+
+  if (level === "level-2") {
+    return <ChatStudyLevel2Page />;
   }
 
   return <ChatOverviewPage config={getChatStudyPageConfig(level)} />;

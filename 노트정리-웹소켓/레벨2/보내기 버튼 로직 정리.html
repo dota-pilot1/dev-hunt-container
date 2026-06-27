@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level 2 보내기 버튼 로직 정리</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+      --red: #dc2626;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .flow-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+    }
+
+    .flow-item strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--strong);
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .ok {
+      border-left: 4px solid var(--green);
+      background: #ecfdf5;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .file {
+      color: var(--blue);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Level 2</span>
+    <h1>보내기 버튼 관련 로직 정리</h1>
+    <p class="lead">
+      이 문서는 <code>ChatStudyLevel2Page.tsx</code>에서 사용자가 메시지를 입력하고
+      <strong>보내기</strong> 버튼을 눌렀을 때, 프론트 상태 검사부터 STOMP publish,
+      백엔드 message mapping, topic broadcast, 클라이언트 렌더링까지 이어지는 흐름을 정리한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">한 줄 요약</h2>
+      <p>
+        보내기 버튼은 직접 서버 API를 호출하는 버튼이 아니라,
+        이미 연결된 STOMP client로 <code>/app/chat.level2.send</code>에 메시지를 발행하는 트리거다.
+        서버는 이 메시지를 받아 <code>/topic/chat.level2.messages</code>로 다시 뿌리고,
+        프론트는 구독 콜백에서 받은 메시지를 <code>messages</code> state에 추가해서 화면에 표시한다.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0">큰 그림 먼저 보기</h2>
+      <pre><code>[브라우저 화면]
+  입력창 draft
+  보내기 버튼
+      │
+      │ submit event
+      ▼
+[sendMessage 함수]
+  기본 submit 새로고침 막기
+  clientRef.current 확인
+  draft.trim() 확인
+  STOMP publish
+      │
+      │ destination: /app/chat.level2.send
+      ▼
+[Spring WebSocket Controller]
+  @MessageMapping("/chat.level2.send")
+  ChatLevel2MessageRequest 수신
+  ChatLevel2MessageResponse 생성
+      │
+      │ @SendTo("/topic/chat.level2.messages")
+      ▼
+[구독 중인 모든 브라우저]
+  client.subscribe 콜백 실행
+  frame.body JSON.parse
+  setMessages(...)
+      │
+      ▼
+[채팅 말풍선 렌더링]</code></pre>
+
+      <p>
+        여기서 포인트는 <strong>보내기 버튼 클릭</strong>과 <strong>화면에 메시지가 추가되는 시점</strong>이
+        같은 함수 안에 있지 않다는 점이다. 버튼은 publish만 하고,
+        화면 추가는 서버가 다시 내려준 topic 메시지를 받은 subscribe 콜백에서 일어난다.
+      </p>
+    </section>
+
+    <h2>사용자가 보는 화면 기준 흐름</h2>
+    <div class="flow">
+      <div class="flow-item">
+        <strong>1. 연결</strong>
+        <p><code>연결</code> 버튼을 눌러 STOMP client가 활성화되고 topic 구독이 잡힌다.</p>
+      </div>
+      <div class="flow-item">
+        <strong>2. 입력</strong>
+        <p>입력창 값이 <code>draft</code> state에 저장된다.</p>
+      </div>
+      <div class="flow-item">
+        <strong>3. 보내기</strong>
+        <p><code>보내기</code> 버튼 또는 form submit이 <code>sendMessage()</code>를 실행한다.</p>
+      </div>
+      <div class="flow-item">
+        <strong>4. 발행</strong>
+        <p>프론트가 <code>/app/chat.level2.send</code>로 JSON payload를 publish한다.</p>
+      </div>
+      <div class="flow-item">
+        <strong>5. 브로드캐스트</strong>
+        <p>서버가 메시지 DTO를 만들고 <code>/topic/chat.level2.messages</code>로 전송한다.</p>
+      </div>
+      <div class="flow-item">
+        <strong>6. 렌더링</strong>
+        <p>구독 중인 모든 클라이언트가 메시지를 받아 채팅 목록에 추가한다.</p>
+      </div>
+    </div>
+
+    <h2>이벤트 흐름을 코드 기준으로 쪼개기</h2>
+    <p>
+      레벨2에서 실제로 중요한 이벤트는 세 가지다.
+      <code>입력 이벤트</code>, <code>submit 이벤트</code>, <code>구독 메시지 수신 이벤트</code>다.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>이벤트</th>
+          <th>발생 시점</th>
+          <th>실행되는 코드</th>
+          <th>결과</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>입력 이벤트</td>
+          <td>사용자가 input에 글자를 입력할 때</td>
+          <td><code>onChange={(event) =&gt; setDraft(event.target.value)}</code></td>
+          <td><code>draft</code> state가 바뀌고, 버튼 활성화 조건도 같이 갱신된다.</td>
+        </tr>
+        <tr>
+          <td>submit 이벤트</td>
+          <td>보내기 버튼 클릭 또는 Enter 입력</td>
+          <td><code>&lt;form onSubmit={sendMessage}&gt;</code></td>
+          <td><code>sendMessage()</code>가 실행되어 STOMP publish를 시도한다.</td>
+        </tr>
+        <tr>
+          <td>수신 이벤트</td>
+          <td>서버가 topic으로 메시지를 브로드캐스트할 때</td>
+          <td><code>client.subscribe(..., callback)</code></td>
+          <td><code>messages</code> state에 새 메시지가 추가되고 화면이 다시 렌더링된다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      React 입장에서 보면 <code>draft</code>와 <code>messages</code>는 화면을 다시 그리게 만드는 state다.
+      반대로 <code>clientRef</code>와 <code>subscriptionRef</code>는 STOMP 객체를 보관하는 저장소라서,
+      값이 바뀌어도 그 자체로 화면 렌더링을 유발하지 않는다.
+    </div>
+
+    <h2>관련 파일</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>파일</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>프론트 화면</td>
+          <td><span class="file">dev-hunt-frontend/src/features/chat-study-level2/ChatStudyLevel2Page.tsx</span></td>
+          <td>입력창, 보내기 버튼, STOMP 연결, publish, subscribe, 메시지 목록 렌더링을 담당한다.</td>
+        </tr>
+        <tr>
+          <td>라우트 연결</td>
+          <td><span class="file">dev-hunt-frontend/src/app/chat-study/[level]/page.tsx</span></td>
+          <td><code>/chat-study/level-2</code> 요청 시 <code>ChatStudyLevel2Page</code>를 렌더링한다.</td>
+        </tr>
+        <tr>
+          <td>백엔드 메시지 컨트롤러</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/ChatStudyMessageController.java</span></td>
+          <td><code>@MessageMapping("/chat.level2.send")</code>로 메시지를 받고 topic으로 응답한다.</td>
+        </tr>
+        <tr>
+          <td>요청 DTO</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/dto/ChatLevel2MessageRequest.java</span></td>
+          <td>프론트가 보내는 <code>sender</code>, <code>content</code> 구조를 받는다.</td>
+        </tr>
+        <tr>
+          <td>응답 DTO</td>
+          <td><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/dto/ChatLevel2MessageResponse.java</span></td>
+          <td>클라이언트가 렌더링할 <code>id</code>, <code>sender</code>, <code>content</code>, <code>sentAt</code>을 내려준다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>보내기 버튼 JSX</h2>
+    <p>
+      버튼은 <code>&lt;form onSubmit={sendMessage}&gt;</code> 안에 있다.
+      그래서 버튼 클릭뿐 아니라 입력창에서 Enter를 눌러도 같은 <code>sendMessage()</code> 함수가 실행된다.
+    </p>
+    <pre><code>&lt;form onSubmit={sendMessage}&gt;
+  &lt;input
+    value={draft}
+    onChange={(event) =&gt; setDraft(event.target.value)}
+    disabled={!connected}
+    placeholder={connected ? "메시지를 입력하세요" : "먼저 연결하세요"}
+  /&gt;
+
+  &lt;button
+    type="submit"
+    disabled={!connected || !draft.trim()}
+  &gt;
+    &lt;Send /&gt;
+    보내기
+  &lt;/button&gt;
+&lt;/form&gt;</code></pre>
+
+    <h3>버튼이 비활성화되는 조건</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>조건</th>
+          <th>의미</th>
+          <th>이유</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>!connected</code></td>
+          <td>STOMP 연결이 아직 완료되지 않음</td>
+          <td>연결 전에는 <code>client.publish()</code>를 해도 보낼 수 없으므로 버튼을 막는다.</td>
+        </tr>
+        <tr>
+          <td><code>!draft.trim()</code></td>
+          <td>입력값이 비어 있거나 공백뿐임</td>
+          <td>의미 없는 빈 메시지가 서버로 가지 않게 프론트에서 먼저 차단한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <strong>중요:</strong>
+      버튼의 <code>disabled</code>는 사용자 경험을 위한 1차 방어다.
+      실제 함수 안에서도 <code>client?.connected</code>와 <code>content</code>를 다시 검사한다.
+      UI 상태와 실제 STOMP client 상태가 순간적으로 어긋날 수 있기 때문이다.
+    </div>
+
+    <h2>sendMessage 함수 전체 흐름</h2>
+    <pre><code>const sendMessage = (event?: FormEvent&lt;HTMLFormElement&gt;) =&gt; {
+  event?.preventDefault();
+
+  const client = clientRef.current;
+  const content = draft.trim();
+  if (!client?.connected || !content) return;
+
+  client.publish({
+    destination: "/app/chat.level2.send",
+    body: JSON.stringify({ sender, content }),
+  });
+  setDraft("");
+};</code></pre>
+
+    <h3>라인별 설명</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>코드</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>event?.preventDefault()</code></td>
+          <td>form submit의 기본 동작인 페이지 새로고침을 막는다. 채팅 화면은 새로고침 없이 STOMP로만 메시지를 보내야 한다.</td>
+        </tr>
+        <tr>
+          <td><code>const client = clientRef.current</code></td>
+          <td>연결 때 만들어둔 STOMP client 객체를 ref에서 꺼낸다. ref를 쓰는 이유는 렌더링과 무관하게 같은 client 인스턴스를 유지하기 위해서다.</td>
+        </tr>
+        <tr>
+          <td><code>const content = draft.trim()</code></td>
+          <td>입력값 앞뒤 공백을 제거한다. 공백뿐인 메시지는 빈 문자열이 된다.</td>
+        </tr>
+        <tr>
+          <td><code>if (!client?.connected || !content) return</code></td>
+          <td>STOMP 연결이 없거나 메시지가 비어 있으면 발행하지 않고 종료한다.</td>
+        </tr>
+        <tr>
+          <td><code>client.publish(...)</code></td>
+          <td>서버의 application destination으로 메시지를 발행한다. 여기서 실제 WebSocket 송신이 발생한다.</td>
+        </tr>
+        <tr>
+          <td><code>setDraft("")</code></td>
+          <td>전송 후 입력창을 비운다. 화면에 메시지를 즉시 추가하지는 않는다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="warn">
+      <strong>왜 바로 messages에 추가하지 않을까?</strong>
+      이 구현에서는 내가 보낸 메시지도 서버가 topic으로 다시 브로드캐스트한 뒤 구독 콜백에서 추가한다.
+      이렇게 하면 내 화면과 다른 사람 화면이 같은 응답 DTO를 기준으로 렌더링된다.
+      즉, <code>id</code>와 <code>sentAt</code>은 클라이언트가 임의로 만드는 값이 아니라 서버가 확정한 값이다.
+    </div>
+
+    <h2>클릭 후 실제 실행 순서</h2>
+    <p>
+      사용자가 <strong>보내기</strong>를 누르면 아래 순서로 실행된다.
+      브라우저 화면에서 보면 한 번에 일어나는 것처럼 보이지만, 실제로는 프론트 송신과 서버 응답 수신이 분리되어 있다.
+    </p>
+    <ol>
+      <li>버튼의 <code>type="submit"</code> 때문에 form submit 이벤트가 발생한다.</li>
+      <li>React가 <code>onSubmit={sendMessage}</code>에 연결된 <code>sendMessage</code> 함수를 호출한다.</li>
+      <li><code>event.preventDefault()</code>로 브라우저의 기본 form 제출, 즉 페이지 새로고침을 막는다.</li>
+      <li><code>clientRef.current</code>에서 현재 STOMP client를 꺼낸다.</li>
+      <li><code>draft.trim()</code>으로 입력값을 정리한다.</li>
+      <li>연결이 끊겨 있거나 내용이 비어 있으면 <code>return</code>으로 종료한다.</li>
+      <li>정상 조건이면 <code>client.publish()</code>로 서버에 메시지를 보낸다.</li>
+      <li>보낸 직후 <code>setDraft("")</code>로 입력창만 비운다.</li>
+      <li>서버가 메시지를 처리하고 topic으로 다시 전송한다.</li>
+      <li>프론트의 subscribe 콜백이 실행되고, 그때 <code>setMessages()</code>로 화면 목록에 추가된다.</li>
+    </ol>
+
+    <h2>state와 ref 변화</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>이름</th>
+          <th>종류</th>
+          <th>언제 바뀌나</th>
+          <th>화면 영향</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>draft</code></td>
+          <td>state</td>
+          <td>입력창에 글자를 입력할 때, 전송 후 <code>setDraft("")</code> 할 때</td>
+          <td>입력창 값과 보내기 버튼 활성화 여부가 바뀐다.</td>
+        </tr>
+        <tr>
+          <td><code>messages</code></td>
+          <td>state</td>
+          <td>subscribe 콜백에서 서버 메시지를 받을 때</td>
+          <td>채팅 말풍선 목록이 다시 렌더링된다.</td>
+        </tr>
+        <tr>
+          <td><code>connectionState</code></td>
+          <td>state</td>
+          <td>연결 시도, 연결 성공, 연결 해제, 에러 발생 시</td>
+          <td>상단 연결 배지, 버튼 disabled, 입력창 disabled가 바뀐다.</td>
+        </tr>
+        <tr>
+          <td><code>clientRef</code></td>
+          <td>ref</td>
+          <td><code>connect()</code>에서 STOMP client를 만들 때 저장된다.</td>
+          <td>직접 렌더링을 일으키지는 않는다. <code>sendMessage()</code>가 publish할 client를 찾는 데 쓴다.</td>
+        </tr>
+        <tr>
+          <td><code>subscriptionRef</code></td>
+          <td>ref</td>
+          <td><code>client.subscribe()</code>의 반환값을 저장할 때</td>
+          <td>직접 렌더링을 일으키지는 않는다. 연결 해제나 cleanup 때 구독을 끊는 데 쓴다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>publish payload 구조</h2>
+    <p>
+      보내기 버튼이 눌리면 프론트는 아래 JSON을 문자열로 바꿔 STOMP frame body에 넣는다.
+    </p>
+    <pre><code>{
+  "sender": "오현석",
+  "content": "안녕하세요"
+}</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>필드</th>
+          <th>값을 만드는 곳</th>
+          <th>설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>sender</code></td>
+          <td><code>user?.username ?? user?.email ?? "tester"</code></td>
+          <td>로그인 사용자 이름을 우선 사용하고, 없으면 이메일, 그것도 없으면 테스트용 이름을 사용한다.</td>
+        </tr>
+        <tr>
+          <td><code>content</code></td>
+          <td><code>draft.trim()</code></td>
+          <td>입력창의 현재 값을 정리한 메시지 본문이다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>STOMP 경로가 바뀌는 방식</h2>
+    <p>
+      프론트 코드에서는 <code>destination: "/app/chat.level2.send"</code>로 보낸다.
+      하지만 백엔드 컨트롤러에는 <code>@MessageMapping("/chat.level2.send")</code>만 적혀 있다.
+    </p>
+    <pre><code>// 프론트
+client.publish({
+  destination: "/app/chat.level2.send",
+  body: JSON.stringify({ sender, content }),
+});
+
+// 백엔드
+@MessageMapping("/chat.level2.send")
+@SendTo("/topic/chat.level2.messages")
+public ChatLevel2MessageResponse sendMessage(ChatLevel2MessageRequest request) {
+  ...
+}</code></pre>
+
+    <div class="note">
+      <code>/app</code>은 <code>WebSocketConfig</code>에서 설정한 application destination prefix다.
+      그래서 프론트는 <code>/app/chat.level2.send</code>로 보내지만,
+      Spring은 prefix를 떼고 <code>/chat.level2.send</code>에 매핑된 메서드를 찾는다.
+    </div>
+
+    <h2>백엔드 처리 흐름</h2>
+    <pre><code>@MessageMapping("/chat.level2.send")
+@SendTo("/topic/chat.level2.messages")
+public ChatLevel2MessageResponse sendMessage(ChatLevel2MessageRequest request) {
+    String sender = request.sender() == null || request.sender().isBlank()
+            ? "anonymous"
+            : request.sender().trim();
+    String content = request.content() == null || request.content().isBlank()
+            ? "(empty)"
+            : request.content().trim();
+
+    return new ChatLevel2MessageResponse(
+            UUID.randomUUID().toString(),
+            sender,
+            content,
+            Instant.now()
+    );
+}</code></pre>
+
+    <ol>
+      <li>STOMP broker가 <code>/app/chat.level2.send</code> 메시지를 application handler로 넘긴다.</li>
+      <li>Spring이 JSON body를 <code>ChatLevel2MessageRequest</code> record로 변환한다.</li>
+      <li>컨트롤러가 <code>sender</code>와 <code>content</code>를 정리한다.</li>
+      <li>서버가 메시지 <code>id</code>와 <code>sentAt</code>을 새로 만든다.</li>
+      <li><code>@SendTo</code>에 의해 반환값이 <code>/topic/chat.level2.messages</code>로 전송된다.</li>
+    </ol>
+
+    <h2>구독 콜백과 화면 반영</h2>
+    <p>
+      메시지를 화면에 추가하는 곳은 보내기 버튼 함수가 아니라,
+      연결 성공 후 등록한 subscribe 콜백이다.
+    </p>
+    <pre><code>subscriptionRef.current = client.subscribe(
+  "/topic/chat.level2.messages",
+  (frame: IMessage) =&gt; {
+    const body = JSON.parse(frame.body) as ChatMessage;
+    setMessages((prev) =&gt; [...prev, body].slice(-100));
+  }
+);</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>코드</th>
+          <th>설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>client.subscribe(...)</code></td>
+          <td><code>/topic/chat.level2.messages</code>를 구독한다. 이 topic으로 오는 메시지는 모두 콜백으로 들어온다.</td>
+        </tr>
+        <tr>
+          <td><code>JSON.parse(frame.body)</code></td>
+          <td>STOMP frame body는 문자열이므로 화면에서 쓰기 위해 객체로 변환한다.</td>
+        </tr>
+        <tr>
+          <td><code>setMessages((prev) =&gt; [...prev, body].slice(-100))</code></td>
+          <td>기존 메시지 뒤에 새 메시지를 붙이고, 최근 100개만 유지한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="ok">
+      <strong>결론:</strong>
+      보내기 버튼은 <code>messages</code>를 직접 바꾸지 않는다.
+      버튼은 서버로 메시지를 보내는 역할만 하고,
+      화면 반영은 서버가 다시 내려준 topic 메시지를 받은 subscribe 콜백이 담당한다.
+    </div>
+
+    <h2>내 메시지와 남의 메시지 구분</h2>
+    <p>
+      렌더링할 때는 메시지의 <code>sender</code>와 현재 화면의 <code>sender</code>를 비교한다.
+      같으면 오른쪽 검은 말풍선, 다르면 왼쪽 일반 말풍선으로 보여준다.
+    </p>
+    <pre><code>messages.map((message) =&gt; {
+  const mine = message.sender === sender;
+
+  return (
+    &lt;div className={`flex ${mine ? "justify-end" : "justify-start"}`}&gt;
+      ...
+    &lt;/div&gt;
+  );
+})</code></pre>
+
+    <div class="warn">
+      현재는 학습용 구현이라 <code>sender</code> 문자열 비교로 내 메시지를 판단한다.
+      실전에서는 사용자 ID처럼 변하지 않는 고유 식별자를 응답 DTO에 포함시키는 편이 더 안전하다.
+    </div>
+
+    <h2>전체 시퀀스</h2>
+    <pre><code>사용자
+  ↓ 보내기 버튼 클릭
+form onSubmit
+  ↓
+sendMessage(event)
+  ↓ preventDefault
+  ↓ clientRef.current 확인
+  ↓ draft.trim() 확인
+client.publish("/app/chat.level2.send", JSON)
+  ↓
+Spring @MessageMapping("/chat.level2.send")
+  ↓
+ChatLevel2MessageResponse 생성
+  ↓
+@SendTo("/topic/chat.level2.messages")
+  ↓
+프론트 client.subscribe 콜백 실행
+  ↓
+setMessages([...prev, body])
+  ↓
+채팅 말풍선 렌더링</code></pre>
+
+    <h2>디버깅 체크포인트</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>증상</th>
+          <th>확인할 것</th>
+          <th>관련 코드</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>보내기 버튼이 비활성화됨</td>
+          <td>연결 상태가 <code>connected</code>인지, 입력값이 공백뿐이 아닌지 확인한다.</td>
+          <td><code>disabled={!connected || !draft.trim()}</code></td>
+        </tr>
+        <tr>
+          <td>버튼을 눌러도 새로고침됨</td>
+          <td><code>event.preventDefault()</code>가 실행되는지 확인한다.</td>
+          <td><code>event?.preventDefault()</code></td>
+        </tr>
+        <tr>
+          <td>서버가 메시지를 못 받음</td>
+          <td>publish destination이 <code>/app/chat.level2.send</code>인지 확인한다.</td>
+          <td><code>client.publish({ destination: ... })</code></td>
+        </tr>
+        <tr>
+          <td>서버는 받는데 화면에 안 뜸</td>
+          <td>subscribe destination이 <code>/topic/chat.level2.messages</code>인지 확인한다.</td>
+          <td><code>client.subscribe(...)</code></td>
+        </tr>
+        <tr>
+          <td>내 메시지가 왼쪽에 뜸</td>
+          <td>응답의 <code>sender</code>와 현재 클라이언트의 <code>sender</code> 문자열이 같은지 확인한다.</td>
+          <td><code>message.sender === sender</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level 2 메시지 컨트롤러 요청 응답 도식화</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f7f7f8;
+      color: #171717;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2 {
+      margin: 0;
+      color: #111827;
+      line-height: 1.25;
+    }
+
+    h1 {
+      margin-top: 8px;
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 10px;
+      font-size: 22px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    code {
+      border-radius: 4px;
+      background: #f3f4f6;
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    th, td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: #111827;
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: #6b7280;
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px;
+    }
+
+    .diagram {
+      margin-top: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+    }
+
+    .node {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #f9fafb;
+      padding: 12px 14px;
+    }
+
+    .node strong {
+      display: block;
+      color: #111827;
+    }
+
+    .arrow {
+      color: #6b7280;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .note {
+      border-left: 4px solid #2563eb;
+      background: #eff6ff;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Level 2</span>
+    <h1>메시지 컨트롤러 요청 응답 도식화</h1>
+    <p class="lead">
+      <code>@MessageMapping</code>과 <code>@SendTo</code>가 붙은 컨트롤러가
+      프론트 메시지 요청을 받아 구독 중인 클라이언트들에게 응답하는 구조를 간단히 정리한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">한 줄로 말하면</h2>
+      <p>
+        이 컨트롤러는 <code>/app/chat.level2.send</code>로 들어온 메시지 요청을 받고,
+        응답 DTO를 만들어 <code>/topic/chat.level2.messages</code>를 구독한 모든 클라이언트에게 브로드캐스트한다.
+      </p>
+    </section>
+
+    <h2>컨트롤러 코드</h2>
+    <pre><code>@MessageMapping("/chat.level2.send")
+@SendTo("/topic/chat.level2.messages")
+public ChatLevel2MessageResponse sendMessage(ChatLevel2MessageRequest request) {
+    String sender = request.sender() == null || request.sender().isBlank()
+            ? "anonymous"
+            : request.sender().trim();
+    String content = request.content() == null || request.content().isBlank()
+            ? "(empty)"
+            : request.content().trim();
+
+    return new ChatLevel2MessageResponse(UUID.randomUUID().toString(), sender, content, Instant.now());
+}</code></pre>
+
+    <h2>도식화</h2>
+    <section class="diagram">
+      <div class="flow">
+        <div class="node">
+          <strong>1. 프론트 publish</strong>
+          사용자가 보내기 버튼을 누르면 프론트가 <code>/app/chat.level2.send</code>로 메시지를 보낸다.
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node">
+          <strong>2. Spring STOMP 라우팅</strong>
+          <code>/app</code> prefix를 보고 application handler로 넘긴다.
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node">
+          <strong>3. @MessageMapping 실행</strong>
+          <code>@MessageMapping("/chat.level2.send")</code> 메서드가 요청 body를
+          <code>ChatLevel2MessageRequest</code>로 받아 처리한다.
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node">
+          <strong>4. 응답 DTO 생성</strong>
+          서버가 <code>id</code>, <code>sender</code>, <code>content</code>, <code>sentAt</code>을 담은
+          <code>ChatLevel2MessageResponse</code>를 반환한다.
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node">
+          <strong>5. @SendTo 브로드캐스트</strong>
+          반환값이 <code>/topic/chat.level2.messages</code>로 전송된다.
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node">
+          <strong>6. 구독 클라이언트 수신</strong>
+          이 topic을 <code>client.subscribe()</code>로 구독해둔 모든 브라우저의 콜백이 실행된다.
+        </div>
+      </div>
+    </section>
+
+    <h2>주소 역할 비교</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>주소</th>
+          <th>방향</th>
+          <th>역할</th>
+          <th>관련 코드</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/app/chat.level2.send</code></td>
+          <td>프론트 → 백엔드</td>
+          <td>사용자가 보낸 메시지 요청이 들어가는 주소</td>
+          <td><code>client.publish()</code>, <code>@MessageMapping</code></td>
+        </tr>
+        <tr>
+          <td><code>/topic/chat.level2.messages</code></td>
+          <td>백엔드 → 프론트들</td>
+          <td>서버 응답이 구독 클라이언트들에게 뿌려지는 주소</td>
+          <td><code>@SendTo</code>, <code>client.subscribe()</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>프론트 수신 코드</h2>
+    <pre><code>subscriptionRef.current = client.subscribe("/topic/chat.level2.messages", (frame: IMessage) =&gt; {
+  const body = JSON.parse(frame.body) as ChatMessage;
+  setMessages((prev) =&gt; [...prev, body].slice(-100));
+});</code></pre>
+
+    <div class="note">
+      정리하면, <code>@MessageMapping</code>은 요청을 받는 입구이고
+      <code>@SendTo</code>는 구독자들에게 응답을 내보내는 출구다.
+      그래서 이 컨트롤러는 “메시지 요청을 받아 구독한 클라이언트에 응답하는 컨트롤러”라고 보면 된다.
+    </div>
+  </main>
+</body>
+</html>

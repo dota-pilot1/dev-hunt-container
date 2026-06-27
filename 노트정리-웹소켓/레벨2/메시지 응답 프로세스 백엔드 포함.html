@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level 2 메시지 응답 프로세스</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .ok {
+      border-left: 4px solid var(--green);
+      background: #ecfdf5;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .file {
+      color: var(--blue);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Level 2</span>
+    <h1>메시지 응답 프로세스: 백엔드 포함</h1>
+    <p class="lead">
+      이 문서는 <code>client.subscribe("/topic/chat.level2.messages", callback)</code>를 중심으로,
+      프론트가 미리 구독을 걸어두고 백엔드가 메시지를 브로드캐스트하면 그 응답이 어떻게 다시 화면에 반영되는지 정리한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">질문에 대한 답</h2>
+      <p>
+        맞다. 아래처럼 콜백을 설정해두면 <code>/topic/chat.level2.messages</code> 구독에 대한 메시지가 올 때마다
+        콜백 함수가 실행되고, 그 안에서 <code>setMessages()</code>가 호출되어 채팅 목록에 메시지가 추가된다.
+      </p>
+      <pre><code>subscriptionRef.current = client.subscribe("/topic/chat.level2.messages", (frame: IMessage) =&gt; {
+  const body = JSON.parse(frame.body) as ChatMessage;
+  setMessages((prev) =&gt; [...prev, body].slice(-100));
+});</code></pre>
+    </section>
+
+    <h2>응답 프로세스 전체 그림</h2>
+    <pre><code>[프론트 연결 성공]
+  onConnect 실행
+      ↓
+[프론트 구독 등록]
+  client.subscribe("/topic/chat.level2.messages", callback)
+      ↓
+  이제 이 브라우저는 해당 topic을 듣는 상태가 됨
+
+[사용자 메시지 전송]
+  client.publish("/app/chat.level2.send", JSON)
+      ↓
+[백엔드 수신]
+  @MessageMapping("/chat.level2.send")
+      ↓
+  ChatLevel2MessageRequest로 변환
+      ↓
+  ChatLevel2MessageResponse 생성
+      ↓
+[백엔드 응답 브로드캐스트]
+  @SendTo("/topic/chat.level2.messages")
+      ↓
+[프론트 구독 콜백 실행]
+  callback(frame)
+      ↓
+  JSON.parse(frame.body)
+      ↓
+  setMessages(...)
+      ↓
+[화면 반영]
+  messages.map(...)으로 말풍선 렌더링</code></pre>
+
+    <div class="note">
+      중요한 점은 <code>subscribe</code>가 서버에 즉시 메시지를 요청하는 코드가 아니라는 것이다.
+      <code>subscribe</code>는 “앞으로 이 topic으로 오는 메시지를 받겠다”는 수신 통로를 열어두는 코드다.
+    </div>
+
+    <h2>1단계: 프론트가 먼저 구독 통로를 열어둔다</h2>
+    <p>
+      구독은 <code>onConnect</code> 안에서 등록된다.
+      WebSocket/STOMP 연결이 성공한 뒤에야 topic을 구독할 수 있기 때문이다.
+    </p>
+    <pre><code>onConnect: () =&gt; {
+  setConnectionState("connected");
+  setSystemMessage("연결되었습니다. 다른 브라우저 탭에서도 같은 페이지를 열어 브로드캐스트를 확인할 수 있습니다.");
+
+  subscriptionRef.current = client.subscribe("/topic/chat.level2.messages", (frame: IMessage) =&gt; {
+    const body = JSON.parse(frame.body) as ChatMessage;
+    setMessages((prev) =&gt; [...prev, body].slice(-100));
+  });
+}</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>코드</th>
+          <th>의미</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>client.subscribe(...)</code></td>
+          <td>STOMP broker에게 특정 topic을 구독하겠다고 등록한다.</td>
+        </tr>
+        <tr>
+          <td><code>"/topic/chat.level2.messages"</code></td>
+          <td>백엔드가 응답을 뿌리는 주소다. 이 주소를 구독한 클라이언트만 메시지를 받는다.</td>
+        </tr>
+        <tr>
+          <td><code>(frame) =&gt; { ... }</code></td>
+          <td>해당 topic으로 메시지가 도착했을 때 실행될 콜백 함수다.</td>
+        </tr>
+        <tr>
+          <td><code>subscriptionRef.current = ...</code></td>
+          <td>나중에 연결 해제할 때 <code>unsubscribe()</code> 할 수 있도록 구독 객체를 보관한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>2단계: 사용자가 메시지를 보내면 application destination으로 간다</h2>
+    <p>
+      보내기 버튼은 아래 코드로 서버에 메시지를 발행한다.
+      이때 목적지는 구독 주소인 <code>/topic/...</code>이 아니라 서버 컨트롤러가 받는 <code>/app/...</code> 주소다.
+    </p>
+    <pre><code>client.publish({
+  destination: "/app/chat.level2.send",
+  body: JSON.stringify({ sender, content }),
+});</code></pre>
+
+    <div class="warn">
+      <code>/app/chat.level2.send</code>는 “서버로 보내는 주소”이고,
+      <code>/topic/chat.level2.messages</code>는 “서버가 클라이언트들에게 뿌리는 주소”다.
+      둘은 역할이 다르다.
+    </div>
+
+    <h2>3단계: 백엔드가 publish 메시지를 받는다</h2>
+    <p>
+      프론트가 <code>/app/chat.level2.send</code>로 보낸 메시지는 Spring의 application destination prefix인
+      <code>/app</code>이 제거된 뒤 <code>@MessageMapping("/chat.level2.send")</code> 메서드로 들어온다.
+    </p>
+    <pre><code>@MessageMapping("/chat.level2.send")
+@SendTo("/topic/chat.level2.messages")
+public ChatLevel2MessageResponse sendMessage(ChatLevel2MessageRequest request) {
+    String sender = request.sender() == null || request.sender().isBlank()
+            ? "anonymous"
+            : request.sender().trim();
+    String content = request.content() == null || request.content().isBlank()
+            ? "(empty)"
+            : request.content().trim();
+
+    return new ChatLevel2MessageResponse(
+            UUID.randomUUID().toString(),
+            sender,
+            content,
+            Instant.now()
+    );
+}</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>백엔드 코드</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>@MessageMapping("/chat.level2.send")</code></td>
+          <td>프론트 publish 메시지를 받는 진입점이다. 프론트 주소는 <code>/app/chat.level2.send</code>다.</td>
+        </tr>
+        <tr>
+          <td><code>ChatLevel2MessageRequest request</code></td>
+          <td>STOMP frame body의 JSON이 Java record로 변환된 결과다.</td>
+        </tr>
+        <tr>
+          <td><code>UUID.randomUUID().toString()</code></td>
+          <td>화면 렌더링 key로 쓸 수 있는 메시지 ID를 서버에서 만든다.</td>
+        </tr>
+        <tr>
+          <td><code>Instant.now()</code></td>
+          <td>메시지 전송 시각을 서버 기준으로 만든다.</td>
+        </tr>
+        <tr>
+          <td><code>@SendTo("/topic/chat.level2.messages")</code></td>
+          <td>메서드 반환값을 해당 topic으로 브로드캐스트한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>4단계: 백엔드 응답 DTO가 topic으로 브로드캐스트된다</h2>
+    <p>
+      백엔드는 아래 형태의 응답을 만든다.
+      이 객체가 JSON으로 직렬화되어 <code>/topic/chat.level2.messages</code>를 구독 중인 클라이언트들에게 전송된다.
+    </p>
+    <pre><code>public record ChatLevel2MessageResponse(
+        String id,
+        String sender,
+        String content,
+        Instant sentAt
+) {
+}</code></pre>
+
+    <pre><code>{
+  "id": "cc7ae965-3e5c-4f40-b7db-08af9a5f77d6",
+  "sender": "오현석",
+  "content": "안녕하세요",
+  "sentAt": "2026-06-27T10:52:28.741791Z"
+}</code></pre>
+
+    <h2>5단계: 프론트 구독 콜백이 응답을 받는다</h2>
+    <p>
+      서버가 topic으로 응답을 뿌리는 순간, 이미 구독을 걸어둔 프론트의 콜백이 실행된다.
+    </p>
+    <pre><code>(frame: IMessage) =&gt; {
+  const body = JSON.parse(frame.body) as ChatMessage;
+  setMessages((prev) =&gt; [...prev, body].slice(-100));
+}</code></pre>
+
+    <table>
+      <thead>
+        <tr>
+          <th>처리</th>
+          <th>설명</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>frame</code></td>
+          <td>STOMP가 넘겨준 수신 frame이다. headers와 body를 가진다.</td>
+        </tr>
+        <tr>
+          <td><code>frame.body</code></td>
+          <td>서버 응답 JSON 문자열이다.</td>
+        </tr>
+        <tr>
+          <td><code>JSON.parse(frame.body)</code></td>
+          <td>문자열을 <code>ChatMessage</code> 객체로 바꾼다.</td>
+        </tr>
+        <tr>
+          <td><code>setMessages((prev) =&gt; [...prev, body].slice(-100))</code></td>
+          <td>기존 메시지 목록 뒤에 새 메시지를 추가하고 최근 100개만 유지한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="ok">
+      이 콜백이 실행되는 시점이 “서버 응답이 프론트에 도착한 시점”이다.
+      사용자가 보낸 메시지도 이 콜백을 통해 화면에 추가된다.
+    </div>
+
+    <h2>6단계: React가 messages 변경을 감지하고 다시 그린다</h2>
+    <p>
+      <code>setMessages()</code>가 호출되면 React state가 바뀐다.
+      그러면 컴포넌트가 다시 렌더링되고, <code>messages.map(...)</code>이 새 메시지 목록을 기준으로 말풍선을 만든다.
+    </p>
+    <pre><code>{messages.map((message) =&gt; {
+  const mine = message.sender === sender;
+
+  return (
+    &lt;div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}&gt;
+      ...
+      &lt;p&gt;{message.content}&lt;/p&gt;
+    &lt;/div&gt;
+  );
+})}</code></pre>
+
+    <h2>요청 주소와 응답 주소 비교</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>주소</th>
+          <th>방향</th>
+          <th>담당 코드</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>메시지 요청</td>
+          <td><code>/app/chat.level2.send</code></td>
+          <td>프론트 → 백엔드</td>
+          <td><code>client.publish()</code>, <code>@MessageMapping</code></td>
+        </tr>
+        <tr>
+          <td>메시지 응답</td>
+          <td><code>/topic/chat.level2.messages</code></td>
+          <td>백엔드 → 구독 중인 프론트들</td>
+          <td><code>@SendTo</code>, <code>client.subscribe()</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>이 프로세스를 부르는 말</h2>
+    <ul>
+      <li><strong>STOMP publish/subscribe 응답 흐름</strong></li>
+      <li><strong>topic broadcast 수신 흐름</strong></li>
+      <li><strong>구독 콜백 기반 메시지 렌더링 흐름</strong></li>
+      <li><strong>WebSocket 메시지 응답 처리 프로세스</strong></li>
+    </ul>
+
+    <div class="note">
+      제일 정확한 설명:
+      <br />
+      <strong>
+        프론트는 <code>/topic/chat.level2.messages</code>를 미리 구독해두고,
+        백엔드는 <code>/app/chat.level2.send</code>로 받은 메시지를 처리한 뒤
+        <code>@SendTo</code>로 같은 topic에 브로드캐스트한다.
+        그러면 구독 콜백이 실행되어 <code>messages</code> state에 응답 메시지를 추가한다.
+      </strong>
+    </div>
+  </main>
+</body>
+</html>

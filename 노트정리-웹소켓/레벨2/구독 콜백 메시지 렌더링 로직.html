@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Level 2 구독 콜백 메시지 렌더링 로직</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --green: #059669;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .ok {
+      border-left: 4px solid var(--green);
+      background: #ecfdf5;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      margin-top: 14px;
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Level 2</span>
+    <h1>구독 콜백 메시지 렌더링 로직</h1>
+    <p class="lead">
+      이 문서는 서버가 <code>/topic/chat.level2.messages</code>로 메시지를 브로드캐스트했을 때,
+      프론트가 그 메시지를 받아 채팅 목록에 추가하고 화면에 렌더링하는 부분만 따로 설명한다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">정확한 이름</h2>
+      <p>
+        이 부분은 보통 <strong>subscribe callback</strong>, <strong>구독 콜백</strong>,
+        또는 <strong>메시지 수신 핸들러</strong>라고 부르면 된다.
+      </p>
+      <p>
+        더 풀어서 말하면 <strong>STOMP topic 구독 콜백에서 수신 메시지를 state에 반영하는 로직</strong>이다.
+      </p>
+    </section>
+
+    <h2>전체 흐름</h2>
+    <pre><code>connect()
+  ↓
+client.subscribe("/topic/chat.level2.messages", callback)
+  ↓
+서버가 topic으로 메시지 broadcast
+  ↓
+callback(frame) 실행
+  ↓
+JSON.parse(frame.body)
+  ↓
+setMessages((prev) =&gt; [...prev, body].slice(-100))
+  ↓
+React 재렌더링
+  ↓
+messages.map(...)으로 말풍선 표시</code></pre>
+
+    <div class="note">
+      <strong>핵심:</strong>
+      보내기 버튼은 <code>/app/chat.level2.send</code>로 메시지를 보내는 역할이다.
+      화면에 메시지를 추가하는 역할은 보내기 버튼이 아니라,
+      <code>/topic/chat.level2.messages</code>를 구독해둔 콜백이 담당한다.
+    </div>
+
+    <h2>구독을 등록하는 코드</h2>
+    <p>
+      구독 등록은 연결 성공 시점인 <code>onConnect</code> 안에서 한다.
+      연결이 되기 전에는 topic을 구독할 수 없기 때문이다.
+    </p>
+    <pre><code>onConnect: () =&gt; {
+  setConnectionState("connected");
+  setSystemMessage("연결되었습니다. 다른 브라우저 탭에서도 같은 페이지를 열어 브로드캐스트를 확인할 수 있습니다.");
+
+  subscriptionRef.current = client.subscribe(
+    "/topic/chat.level2.messages",
+    (frame: IMessage) =&gt; {
+      const body = JSON.parse(frame.body) as ChatMessage;
+      setMessages((prev) =&gt; [...prev, body].slice(-100));
+    }
+  );
+}</code></pre>
+
+    <h2>콜백 내부 로직</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>코드</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>client.subscribe(...)</code></td>
+          <td>서버 topic을 계속 듣겠다고 등록한다. 이 등록이 끝나면 해당 topic으로 오는 메시지마다 콜백이 실행된다.</td>
+        </tr>
+        <tr>
+          <td><code>"/topic/chat.level2.messages"</code></td>
+          <td>서버가 <code>@SendTo</code>로 메시지를 뿌리는 주소다. 여러 클라이언트가 같은 topic을 구독할 수 있다.</td>
+        </tr>
+        <tr>
+          <td><code>frame</code></td>
+          <td>STOMP가 넘겨주는 수신 메시지 객체다. 실제 JSON 문자열은 <code>frame.body</code> 안에 들어 있다.</td>
+        </tr>
+        <tr>
+          <td><code>JSON.parse(frame.body)</code></td>
+          <td>문자열로 온 JSON을 프론트에서 쓸 수 있는 객체로 바꾼다.</td>
+        </tr>
+        <tr>
+          <td><code>setMessages((prev) =&gt; ...)</code></td>
+          <td>기존 메시지 목록을 기준으로 새 메시지를 뒤에 붙인다. 함수형 업데이트를 쓰면 이전 state를 안전하게 참조할 수 있다.</td>
+        </tr>
+        <tr>
+          <td><code>.slice(-100)</code></td>
+          <td>메시지 목록이 무한히 커지지 않도록 최근 100개만 유지한다.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>입력창에 추가하는 게 아니라 messages 목록에 추가한다</h2>
+    <p>
+      표현을 정확히 하면, 서버에서 온 메시지는 <strong>입력창</strong>에 추가되는 것이 아니다.
+      입력창은 <code>draft</code> state가 담당한다.
+      서버에서 온 메시지는 <code>messages</code> state에 추가되고,
+      그 <code>messages</code>를 화면에서 반복 렌더링해서 채팅 말풍선으로 보여준다.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>화면 영역</th>
+          <th>state</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>하단 입력창</td>
+          <td><code>draft</code></td>
+          <td>사용자가 아직 보내기 전 입력 중인 텍스트</td>
+        </tr>
+        <tr>
+          <td>채팅 메시지 목록</td>
+          <td><code>messages</code></td>
+          <td>서버에서 수신 완료된 메시지들</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="warn">
+      따라서 “구독했던 연결망으로 메시지가 날아오면 입력창에 추가된다”보다는
+      “구독한 topic으로 메시지가 오면 수신 콜백이 실행되고, 그 메시지를 <code>messages</code> state에 추가해서 채팅 목록에 렌더링한다”가 정확한 표현이다.
+    </div>
+
+    <h2>서버 응답 body 형태</h2>
+    <p>
+      콜백에서 <code>JSON.parse(frame.body)</code> 하면 아래 형태의 객체가 된다.
+    </p>
+    <pre><code>{
+  "id": "cc7ae965-3e5c-4f40-b7db-08af9a5f77d6",
+  "sender": "오현석",
+  "content": "안녕하세요",
+  "sentAt": "2026-06-27T10:52:28.741791Z"
+}</code></pre>
+
+    <h2>왜 setMessages는 함수형 업데이트를 쓰나</h2>
+    <pre><code>setMessages((prev) =&gt; [...prev, body].slice(-100));</code></pre>
+    <p>
+      WebSocket 메시지는 사용자의 클릭과 별개로 비동기적으로 들어온다.
+      그래서 현재 렌더 시점의 <code>messages</code> 값을 직접 참조하기보다,
+      React가 넘겨주는 가장 최신 이전 값인 <code>prev</code>를 기준으로 새 메시지를 붙이는 편이 안전하다.
+    </p>
+
+    <h2>화면 렌더링 코드</h2>
+    <p>
+      <code>messages</code> state가 바뀌면 React가 다시 렌더링하고,
+      아래 <code>messages.map</code> 부분이 새 목록 기준으로 다시 그려진다.
+    </p>
+    <pre><code>{messages.map((message) =&gt; {
+  const mine = message.sender === sender;
+
+  return (
+    &lt;div
+      key={message.id}
+      className={`flex ${mine ? "justify-end" : "justify-start"}`}
+    &gt;
+      &lt;div&gt;
+        &lt;div&gt;
+          &lt;span&gt;{message.sender}&lt;/span&gt;
+          &lt;span&gt;{new Date(message.sentAt).toLocaleTimeString("ko-KR")}&lt;/span&gt;
+        &lt;/div&gt;
+        &lt;p&gt;{message.content}&lt;/p&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  );
+})}</code></pre>
+
+    <h2>이 로직을 부를 때 추천 표현</h2>
+    <ul>
+      <li><strong>구독 콜백</strong></li>
+      <li><strong>STOMP subscribe 콜백</strong></li>
+      <li><strong>topic 메시지 수신 핸들러</strong></li>
+      <li><strong>수신 메시지 state 반영 로직</strong></li>
+      <li><strong>WebSocket 메시지 렌더링 로직</strong></li>
+    </ul>
+
+    <div class="ok">
+      제일 정확하게 말하면:
+      <br />
+      <strong>“STOMP topic 구독 콜백에서 서버가 브로드캐스트한 메시지를 받아 messages state에 추가하고, React가 그 state를 기준으로 채팅 목록을 다시 렌더링한다.”</strong>
+    </div>
+  </main>
+</body>
+</html>
