@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ws 컨트롤러 구조 분석</title>
+  <style>
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --text: #171717;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --strong: #111827;
+      --code: #f3f4f6;
+      --blue: #2563eb;
+      --amber: #d97706;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      color: var(--strong);
+      line-height: 1.25;
+    }
+
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      margin-top: 32px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+    }
+
+    h3 {
+      margin-top: 20px;
+      font-size: 17px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      border-radius: 4px;
+      background: var(--code);
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f9fafb;
+      color: var(--strong);
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .card {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .warn {
+      border-left: 4px solid var(--amber);
+      background: #fffbeb;
+      padding: 12px 14px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .file {
+      color: var(--blue);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="badge">Controller</span>
+    <h1>ws 컨트롤러 구조 분석</h1>
+    <p class="lead">
+      이 문서는 Level 1 WebSocket/STOMP 컨트롤러인 <code>ChatStudyMessageController</code>의 구조를 분석한다.
+      핵심은 <code>@MessageMapping</code>으로 메시지를 받고, <code>@SendTo</code>로 구독자에게 응답하는 흐름이다.
+    </p>
+
+    <section class="card">
+      <h2 style="margin-top:0">대상 파일</h2>
+      <p><span class="file">dev-hunt-server/src/main/java/com/cj/devhunt/chat/presentation/ChatStudyMessageController.java</span></p>
+    </section>
+
+    <h2>전체 코드</h2>
+    <section class="card">
+      <pre><code>package com.cj.devhunt.chat.presentation;
+
+import com.cj.devhunt.chat.presentation.dto.ChatLevel1PingRequest;
+import com.cj.devhunt.chat.presentation.dto.ChatLevel1PongResponse;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
+
+import java.time.Instant;
+
+@Controller
+public class ChatStudyMessageController {
+
+    @MessageMapping("/chat.level1.ping")
+    @SendTo("/topic/chat.level1.pong")
+    public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+        String sender = request.sender() == null || request.sender().isBlank()
+                ? "anonymous"
+                : request.sender().trim();
+        String message = request.message() == null || request.message().isBlank()
+                ? "ping"
+                : request.message().trim();
+
+        return new ChatLevel1PongResponse(sender, "pong: " + message, Instant.now());
+    }
+}</code></pre>
+    </section>
+
+    <h2>한 줄 요약</h2>
+    <section class="card">
+      <p>
+        이 컨트롤러는 프론트가 <code>/app/chat.level1.ping</code>으로 보낸 메시지를 받아서,
+        처리 결과를 <code>/topic/chat.level1.pong</code>을 구독 중인 클라이언트들에게 보낸다.
+      </p>
+      <pre><code>프론트 publish("/app/chat.level1.ping")
+        │
+        ▼
+@MessageMapping("/chat.level1.ping")
+        │
+        ▼
+ping(...)
+        │
+        ▼
+return ChatLevel1PongResponse
+        │
+        ▼
+@SendTo("/topic/chat.level1.pong")
+        │
+        ▼
+프론트 subscribe("/topic/chat.level1.pong") callback</code></pre>
+    </section>
+
+    <h2>@Controller</h2>
+    <section class="card">
+      <pre><code>@Controller
+public class ChatStudyMessageController {
+}</code></pre>
+      <p>
+        이 클래스가 Spring이 관리하는 컨트롤러 Bean임을 나타낸다.
+        REST API 컨트롤러에서는 보통 <code>@RestController</code>를 쓰지만,
+        STOMP 메시지 컨트롤러에서는 <code>@Controller</code>를 사용한다.
+      </p>
+      <div class="note">
+        <code>@RestController</code>는 HTTP 응답 body를 직접 반환하는 REST용 성격이 강하다.
+        여기서는 HTTP 응답이 아니라 STOMP broker로 메시지를 보내는 구조라 <code>@Controller</code>가 자연스럽다.
+      </div>
+    </section>
+
+    <h2>@MessageMapping</h2>
+    <section class="card">
+      <pre><code>@MessageMapping("/chat.level1.ping")</code></pre>
+      <p>
+        프론트가 보낸 STOMP 메시지를 이 메서드로 라우팅하는 주소다.
+      </p>
+      <p>
+        프론트는 실제로 아래 주소로 메시지를 보낸다.
+      </p>
+      <pre><code>client.publish({
+  destination: "/app/chat.level1.ping",
+  body: JSON.stringify(payload),
+});</code></pre>
+      <p>
+        그런데 백엔드에서는 <code>@MessageMapping("/chat.level1.ping")</code>이다.
+        이유는 <code>/app</code> prefix가 설정에서 서버 애플리케이션 prefix로 등록되어 있기 때문이다.
+      </p>
+      <pre><code>registry.setApplicationDestinationPrefixes("/app");</code></pre>
+      <table>
+        <thead>
+          <tr>
+            <th>프론트 발행 주소</th>
+            <th>Spring 처리</th>
+            <th>컨트롤러 매핑</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/app/chat.level1.ping</code></td>
+            <td><code>/app</code> prefix 제거</td>
+            <td><code>@MessageMapping("/chat.level1.ping")</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>@SendTo</h2>
+    <section class="card">
+      <pre><code>@SendTo("/topic/chat.level1.pong")</code></pre>
+      <p>
+        이 메서드의 반환값을 어디로 보낼지 정하는 어노테이션이다.
+        여기서는 반환값을 <code>/topic/chat.level1.pong</code> destination으로 보낸다.
+      </p>
+      <p>
+        프론트는 이 topic을 미리 구독하고 있다.
+      </p>
+      <pre><code>client.subscribe("/topic/chat.level1.pong", callback)</code></pre>
+      <p>
+        따라서 <code>ping()</code> 메서드가 값을 반환하면,
+        Spring simple broker가 <code>/topic/chat.level1.pong</code> 구독자들에게 메시지를 전달한다.
+      </p>
+      <div class="warn">
+        <code>@SendTo</code>는 요청한 사람에게만 보내는 것이 아니다.
+        해당 topic을 구독 중인 모든 클라이언트에게 전송된다.
+      </div>
+    </section>
+
+    <h2>ping 메서드</h2>
+    <section class="card">
+      <pre><code>public ChatLevel1PongResponse ping(ChatLevel1PingRequest request) {
+    ...
+}</code></pre>
+      <p>
+        이 메서드는 프론트가 보낸 JSON 메시지를 <code>ChatLevel1PingRequest</code>로 받아 처리한다.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>부분</th>
+            <th>의미</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ChatLevel1PingRequest request</code></td>
+            <td>프론트가 보낸 JSON body를 Java record로 변환한 값</td>
+          </tr>
+          <tr>
+            <td><code>String sender</code></td>
+            <td>보낸 사람 이름. 비어 있으면 <code>anonymous</code> 사용</td>
+          </tr>
+          <tr>
+            <td><code>String message</code></td>
+            <td>보낸 메시지. 비어 있으면 <code>ping</code> 사용</td>
+          </tr>
+          <tr>
+            <td><code>return new ChatLevel1PongResponse(...)</code></td>
+            <td>프론트 구독자에게 보낼 응답 객체 생성</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>요청 DTO</h2>
+    <section class="card">
+      <p>프론트가 보내는 JSON:</p>
+      <pre><code>{
+  "sender": "tester",
+  "message": "hello websocket stomp"
+}</code></pre>
+      <p>백엔드 요청 DTO:</p>
+      <pre><code>public record ChatLevel1PingRequest(
+        String sender,
+        String message
+) {
+}</code></pre>
+      <p>
+        Spring 메시지 컨버터가 JSON body를 이 record로 변환해서
+        <code>ping(ChatLevel1PingRequest request)</code>에 넣어준다.
+      </p>
+    </section>
+
+    <h2>응답 DTO</h2>
+    <section class="card">
+      <p>백엔드 응답 DTO:</p>
+      <pre><code>public record ChatLevel1PongResponse(
+        String sender,
+        String message,
+        Instant serverTime
+) {
+}</code></pre>
+      <p>프론트에서 받는 JSON 형태:</p>
+      <pre><code>{
+  "sender": "tester",
+  "message": "pong: hello websocket stomp",
+  "serverTime": "2026-06-27T..."
+}</code></pre>
+      <p>
+        이 응답은 HTTP response로 돌아가는 것이 아니라,
+        <code>@SendTo("/topic/chat.level1.pong")</code>에 의해 topic 메시지로 전송된다.
+      </p>
+    </section>
+
+    <h2>REST 컨트롤러와 비교</h2>
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>REST</th>
+            <th>STOMP WebSocket</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>클래스</td>
+            <td><code>@RestController</code></td>
+            <td><code>@Controller</code></td>
+          </tr>
+          <tr>
+            <td>요청 매핑</td>
+            <td><code>@PostMapping("/api/...")</code></td>
+            <td><code>@MessageMapping("/...")</code></td>
+          </tr>
+          <tr>
+            <td>클라이언트 요청</td>
+            <td><code>axios.post(...)</code></td>
+            <td><code>client.publish(...)</code></td>
+          </tr>
+          <tr>
+            <td>응답</td>
+            <td>HTTP response body</td>
+            <td><code>@SendTo</code> topic 메시지</td>
+          </tr>
+          <tr>
+            <td>클라이언트 수신</td>
+            <td><code>await</code> 결과</td>
+            <td><code>subscribe</code> callback</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>핵심 매칭</h2>
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>역할</th>
+            <th>프론트</th>
+            <th>백엔드</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>요청 보내기</td>
+            <td><code>publish("/app/chat.level1.ping")</code></td>
+            <td><code>@MessageMapping("/chat.level1.ping")</code></td>
+          </tr>
+          <tr>
+            <td>응답 받기</td>
+            <td><code>subscribe("/topic/chat.level1.pong")</code></td>
+            <td><code>@SendTo("/topic/chat.level1.pong")</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>정리</h2>
+    <section class="card">
+      <ul>
+        <li><code>@MessageMapping</code>은 프론트가 publish한 메시지를 받는 주소다.</li>
+        <li><code>@SendTo</code>는 메서드 반환값을 보낼 topic 주소다.</li>
+        <li>프론트는 <code>/app/...</code>으로 보내고, 백엔드는 <code>/app</code>을 뺀 주소로 받는다.</li>
+        <li>프론트는 <code>/topic/...</code>을 구독하고, 백엔드는 같은 topic으로 응답을 보낸다.</li>
+        <li><code>@SendTo</code> 응답은 해당 topic 구독자 전체에게 전달된다.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
